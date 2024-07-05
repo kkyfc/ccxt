@@ -1,14 +1,10 @@
 //  ---------------------------------------------------------------------------
 
 import Exchange from './abstract/allin.js';
-import { ExchangeError, ArgumentsRequired, OperationFailed, OperationRejected, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, InvalidNonce, AuthenticationError, RateLimitExceeded, PermissionDenied, NotSupported, BadRequest, BadSymbol, AccountSuspended, OrderImmediatelyFillable, OnMaintenance, BadResponse, RequestTimeout, OrderNotFillable, MarginModeAlreadySet, MarketClosed } from './base/errors.js';
+import { ExchangeError, ArgumentsRequired, OperationFailed, OperationRejected, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, InvalidNonce, AuthenticationError, RateLimitExceeded, PermissionDenied, NotSupported, BadRequest, BadSymbol, AccountSuspended, OrderImmediatelyFillable, OnMaintenance, BadResponse, RequestTimeout, OrderNotFillable, MarginModeAlreadySet, MarketClosed, NetworkError } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import type { TransferEntry, Int, OrderSide, Balances, OrderType, Trade, OHLCV, Order, FundingRateHistory, OpenInterest, Liquidation, OrderRequest, Str, Transaction, Ticker, OrderBook, Tickers, Market, Greeks, Strings, Currency, MarketInterface, MarginMode, MarginModes, Leverage, Leverages, Num, Option, MarginModification, TradingFeeInterface, Currencies, TradingFees, Conversion, CrossBorrowRate, IsolatedBorrowRates, IsolatedBorrowRate, Dict, TransferEntries, LeverageTier, LeverageTiers, int, Dictionary, Position, IndexType } from './base/types.js';
-import { TRUNCATE, TICK_SIZE } from './base/functions/number.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
-import { rsa } from './base/functions/rsa.js';
-import { eddsa } from './base/functions/crypto.js';
-import { ed25519 } from './static_dependencies/noble-curves/ed25519.js';
 
 //  ---------------------------------------------------------------------------xs
 /**
@@ -61,10 +57,10 @@ export default class allin extends Exchange {
                 'createStopLimitOrder': true,
                 'createStopLossOrder': true,
                 'createStopMarketOrder': true,
-                'createStopOrder': true,
+                'createStopOrder': false,
                 'createTakeProfitOrder': true,
                 'createTrailingAmountOrder': true,
-                'createTriggerOrder': true,
+                'createTriggerOrder': false,
                 'editOrder': true,
                 'fetchBalance': true,
                 'fetchBorrowInterest': false, // temporarily disabled, as it doesn't work
@@ -139,19 +135,19 @@ export default class allin extends Exchange {
                 'withdraw': true,
             },
             'timeframes': {
-                '1m': '1',
-                '3m': '3',
-                '5m': '5',
-                '15m': '15',
-                '30m': '30',
-                '1h': '60',
-                '2h': '120',
-                '4h': '240',
-                '6h': '360',
-                '12h': '720',
-                '1d': 'D',
-                '1w': 'W',
-                '1M': 'M',
+                '1m': '1Min',
+                '3m': '3Min',
+                '5m': '5Min',
+                '15m': '15Min',
+                '10m': '10Min',
+                '30m': '30Min',
+                '1h': '1Hour',
+                '2h': '2Hour',
+                '4h': '4Hour',
+                '6h': '6Hour',
+                '12h': '12Hour',
+                '1d': '1Day',
+                '1w': '1Week',
             },
             'urls': {
                 'test': {
@@ -192,6 +188,16 @@ export default class allin extends Exchange {
                         '/open/v1/orders/cancel': 1,
                         '/open/v1/orders/batcancel': 1,
                     },
+                },
+            },
+            'exceptions': {
+                'spot': {
+                    'exact': {
+                        '1010004': BadRequest,
+                    },
+                },
+                'exact': {
+                    '1010004': BadRequest,
                 },
             },
         });
@@ -268,14 +274,15 @@ export default class allin extends Exchange {
         const origin_symbol = this.safeString (market, 'symbol');
         const active = market['status'] === 'TRADING';
         let baseId = this.safeString (market, 'base_asset');
-        let quoteId = market['quote_asset'];
+        let quoteId = this.safeString (market, 'quote_asset');
         const spot = market['is_spot_trading_allowed'] === true;
         const swap = false;
         const future = false;
         const option = false;
         const type_ = 'spot';
         const contract = swap || future || option;
-        if ((origin_symbol !== undefined) && !spot) {
+        // if ((origin_symbol !== undefined) && !spot) {
+        if (origin_symbol !== undefined) {
             const parts = origin_symbol.split ('-');
             baseId = this.safeString (parts, 0);
             quoteId = this.safeString (parts, 1);
@@ -363,20 +370,43 @@ export default class allin extends Exchange {
     }
 
     async fetchTicker (symbol: string, params?: {}): Promise<Ticker> {
+        // const tickers = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': [ { 'symbol': 'BTC-USDT',
+        //         'amt_num': 2,
+        //         'qty_num': 6,
+        //         'amount': '0',
+        //         'volume': '0',
+        //         'high': '68000',
+        //         'low': '68000',
+        //         'change': '0',
+        //         'price': '68000',
+        //         'l_price': '68000' } ],
+        //     'time': 1720064580 };
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request: Dict = {
             'symbol': market['id'],
         };
         const response = await this.publicGetOpenV1TickersMarket (this.extend (request, params));
+        const timestamp = this.safeInteger (response, 'time');
         if (Array.isArray (response)) {
             const firstTicker = this.safeDict (response, 0, {});
+            firstTicker['timestamp'] = timestamp;
             return this.parseTicker (firstTicker, market);
         }
         return this.parseTicker (response, market);
     }
 
     async fetchOrderBook (symbol: string, limit?: Int, params?: {}): Promise<OrderBook> {
+        /**
+         * @method
+         * @name allin#fetchOrderBook
+         * @description fetches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#depth
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#market-depth
+         */
+
         // const orderbook = {
         //     'code': 0,
         //     'msg': 'ok',
@@ -406,11 +436,60 @@ export default class allin extends Exchange {
 
     // }
 
-    // async fetchBalance (params?: {}): Promise<Balances> {
+    async fetchBalance (params?: {}): Promise<Balances> {
+        /**
+         * @method
+         * @name allin#fetchBalance
+         * @description query for balance and get the amount of funds available for trading or funds locked in orders
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#account-balance
+         */
 
-    // }
+        // const balances = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': [
+        //         { 'amount': '1000.1', 'freeze': '0', 'symbol': 'BTC' },
+        //         { 'amount': '0', 'freeze': '0', 'symbol': 'ETH' },
+        //         { 'amount': '0', 'freeze': '0', 'symbol': 'TRX' },
+        //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
+        //     'time': 1720067861 };
+        await this.loadMarkets ();
+        const response = await this.privateGetOpenV1Balance (params);
+        return this.parseBalance (response);
+    }
 
-    // async fetchPositions (symbol: string, params?: {}): Promise<Position> {
+    async fetchOHLCV (symbol: string, timeframe?: string, since?: Int, limit?: Int, params?: {}): Promise<OHLCV[]> {
+        /**
+         * @method
+         * @name allin#fetchOHLCV
+         * @description fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#market-k-line-2
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#market-k-line
+         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
+         * @param {string} timeframe the length of time each candle represents
+         * @param {int} [since] not support
+         * @param {int} [limit] not support
+         */
+
+        // const kline = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data':
+        //      [ { 'time': 1720072680, 'open': '68000.00', 'close': '68000.00', 'high': '68000.00', 'low': '68000.00', 'volume': '0', 'amount': '0' },
+        //          { 'time': 1720072740, 'open': '68000.00', 'close': '68000.00', 'high': '68000.00', 'low': '68000.00', 'volume': '0', 'amount': '0' },
+        // ],
+        //     'time': 1720081645 };
+        const market = this.market (symbol);
+        const marketId = this.marketId (symbol);
+        const duration = this.timeframes[timeframe];
+        params = this.extend (params, {
+            'symbol': marketId,
+            'type': duration,
+        });
+        const response = await this.publicGetOpenV1KlineMarket (params);
+        const klines = this.safeList (response, 'data', []);
+        return this.parseOHLCVs (klines, market, timeframe, since, limit);
+    }
+
+    // fetchPosition( symbol: string, params?: {} ): Promise<Position> {
 
     // }
 
@@ -420,7 +499,6 @@ export default class allin extends Exchange {
         const ts = nonce;
         const client_id = this.apiKey;
         let result = this.extend ({}, params);
-        result['url'] = url;
         if (api === 'private') {
             this.checkRequiredCredentials ();
             result = this.extend (result, { 'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': this.apiKey });
@@ -430,22 +508,33 @@ export default class allin extends Exchange {
         }
         if (method === 'GET' && Object.keys (result).length > 0) {
             url += '?' + this.rawencode (result);
-            result['url'] = url;
         }
+        result['url'] = url;
         return result;
     }
 
     parseTicker (ticker: Dict, market: Market = undefined): Ticker {
+        // const ticker = { 'symbol': 'BTC-USDT',
+        //     'amt_num': 2,
+        //     'qty_num': 6,
+        //     'amount': '0',
+        //     'volume': '0',
+        //     'high': '68000',
+        //     'low': '68000',
+        //     'change': '0',
+        //     'price': '68000',
+        //     'l_price': '68000' };
         const marketId = this.safeString (ticker, 'symbol');
         const symbol = this.safeSymbol (marketId, market, undefined);
         const last = this.safeString (ticker, 'price');
         const baseVolume = this.safeString (ticker, 'volume'); // 数量
         const quoteVolume = this.safeString (ticker, 'amount'); // 金额
+        const timestamp = this.safeInteger (ticker, 'timestamp');
         return this.safeTicker ({
             'symbol': symbol,
             'info': ticker,
-            'timestamp': 0,
-            'datetime': '',
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
             'open': undefined,
             'high': this.safeString (ticker, 'high'),
             'low': this.safeString (ticker, 'low'),
@@ -461,5 +550,86 @@ export default class allin extends Exchange {
             'quoteVolume': quoteVolume,
             'baseVolume': baseVolume,
         }, market);
+    }
+
+    parseBalance (response: any): Balances {
+        // const balances = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': [
+        //         { 'amount': '1000.1', 'freeze': '0', 'symbol': 'BTC' },
+        //         { 'amount': '0', 'freeze': '0', 'symbol': 'ETH' },
+        //         { 'amount': '0', 'freeze': '0', 'symbol': 'TRX' },
+        //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
+        //     'time': 1720067861 };
+        const originBalances = this.safeList (response, 'data', []);
+        const timestamp = this.safeInteger (response, 'timestamp');
+        const balances = {
+            'info': response,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+        };
+        for (let i = 0; i < originBalances.length; i++) {
+            const originBalance = originBalances[i];
+            const symbol = this.safeString (originBalance, 'symbol');
+            const used = this.safeString (originBalance, 'freeze');
+            const total = this.safeString (originBalance, 'amount');
+            const free = Precise.stringSub (total, used);
+            balances[symbol] = {
+                'free': free,
+                'used': used,
+                'total': total,
+                'debt': 0, // ???
+            };
+        }
+        return this.safeBalance (balances);
+    }
+
+    parseOHLCV (ohlcv: any, market?: Market): OHLCV {
+        // const klines = [ { 'time': 1720072680,
+        //     'open': '68000.00',
+        //     'close': '68000.00',
+        //     'high': '68000.00',
+        //     'low': '68000.00',
+        //     'volume': '0',
+        //     'amount': '0' },
+        // { 'time': 1720072740,
+        //     'open': '68000.00',
+        //     'close': '68000.00',
+        //     'high': '68000.00',
+        //     'low': '68000.00',
+        //     'volume': '0',
+        //     'amount': '0' },
+        // ];
+        return [
+            this.safeInteger (ohlcv, 'time'),
+            this.safeInteger (ohlcv, 'open'),
+            this.safeInteger (ohlcv, 'high'),
+            this.safeInteger (ohlcv, 'low'),
+            this.safeInteger (ohlcv, 'close'),
+            this.safeInteger (ohlcv, 'volume'),
+        ];
+    }
+
+    handleErrors (statusCode: int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any) {
+        if (statusCode >= 400) {
+            throw new NetworkError (this.id + ' ' + statusText);
+        }
+        // const response = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': [
+        //         { 'amount': '1000.1', 'freeze': '0', 'symbol': 'BTC' },
+        //         { 'amount': '0', 'freeze': '0', 'symbol': 'ETH' },
+        //         { 'amount': '0', 'freeze': '0', 'symbol': 'TRX' },
+        //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
+        //     'time': 1720067861 };
+        if (response === undefined) {
+            return undefined; // fallback to default error handler
+        }
+        const responseCode = this.safeInteger (response, 'code', 0);
+        if (responseCode !== 0) {
+            const messageNew = this.safeString (response, 'msg');
+            const msg = this.id + ', code: ' + responseCode + ', ' + messageNew;
+            this.throwExactlyMatchedException (this.exceptions['exact'], responseCode, msg);
+        }
     }
 }
