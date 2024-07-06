@@ -1,5 +1,6 @@
 //  ---------------------------------------------------------------------------
 
+import { stat } from 'node:fs';
 import Exchange from './abstract/allin.js';
 import { ExchangeError, ArgumentsRequired, OperationFailed, OperationRejected, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, InvalidNonce, AuthenticationError, RateLimitExceeded, PermissionDenied, NotSupported, BadRequest, BadSymbol, AccountSuspended, OrderImmediatelyFillable, OnMaintenance, BadResponse, RequestTimeout, OrderNotFillable, MarginModeAlreadySet, MarketClosed, NetworkError } from './base/errors.js';
 import { Precise } from './base/Precise.js';
@@ -493,6 +494,102 @@ export default class allin extends Exchange {
 
     // }
 
+    async fetchOrders (symbol?: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
+        /**
+         * @method
+         * @name binance#fetchOrders
+         * @description fetches information on multiple orders made by the user
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#order-history
+         * @param {string} symbol unified market symbol of the market orders were made in
+         * @param {int} [since] Starting time, time stamp
+         * @param {int} [limit] not support
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         * @param {string} [params.side] Direction，1 buy，-1 sell，0 all
+         * @param {string} [params.end] Closing time, time stamp
+         */
+
+        // const orders = {
+        //     'code': 0,
+        //     'msg': 'ok',
+        //     'data': {
+        //         'count': 4,
+        //         'orders': [
+        //             {
+        //                 'order_id': '11574744030837944',
+        //                 'trade_no': '499016576021202015341',
+        //                 'symbol': 'BTC-USDT',
+        //                 'price': '7900',
+        //                 'quantity': '1',
+        //                 'match_amt': '0',
+        //                 'match_qty': '0',
+        //                 'match_price': '',
+        //                 'side': -1,
+        //                 'order_type': 1,
+        //                 'status': 6,
+        //                 'create_at': 1574744151836,
+        //             },
+        //         ],
+        //     },
+        //     'time': 1720243714,
+        // };
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchOrders() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = this.extend (params, {
+            'symbol': market['id'],
+            'side': 0,
+        });
+        let paginate = false;
+        [ paginate, params ] = this.handleOptionAndParams (params, 'fetchOrders', 'paginate');
+        if (paginate) {
+            return await this.fetchPaginatedCallDynamic ('fetchOrders', symbol, since, limit, params) as Order[];
+        }
+        if (since !== undefined) {
+            request['start'] = since;
+        }
+        const response = await this.privateGetOpenV1Orders (request);
+        const orders = this.safeList (response, 'data');
+        return this.parseOrders (orders, market, since, limit, params);
+    }
+
+    async fetchTrades (symbol: string, since?: Int, limit?: Int, params?: {}): Promise<Trade[]> {
+        /**
+         * @method
+         * @name allin#fetchTrades
+         * @description Each filled orders
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#each-filled-orders-2
+         * @param {string} symbol unified symbol of the market to fetch trades for
+         * @param {int} [since] not support
+         * @param {int} [limit] not support
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         */
+
+        // const trades = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': [
+        //         { 'amount': '10200.00000015',
+        //             'price': '68000.000001',
+        //             'side': 1,
+        //             'time': 1719476275833,
+        //             'volume': '0.150000' },
+        //         { 'amount': '10200.00000015',
+        //             'price': '68000.000001',
+        //             'side': -1,
+        //             'time': 1719476383705,
+        //             'volume': '0.150000' } ],
+        //     'time': 1720167549 };
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request: Dict = {
+            'symbol': market['id'],
+        };
+        const response = await this.publicGetOpenV1TradeMarket (request);
+        const trades = this.safeList (response, 'data');
+        return this.parseTrades (trades, market, since, limit);
+    }
+
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.implodeHostname (this.urls['api'][api]) + path;
         const nonce = this.nonce ().toString ();
@@ -608,6 +705,121 @@ export default class allin extends Exchange {
             this.safeInteger (ohlcv, 'close'),
             this.safeInteger (ohlcv, 'volume'),
         ];
+    }
+
+    parseTrade (trade: Dict, market?: Market): Trade {
+        //         { 'amount': '10200.00000015',
+        //             'price': '68000.000001',
+        //             'side': 1,
+        //             'time': 1719476275833,
+        //             'volume': '0.150000' }
+        const timestamp = this.safeInteger (trade, 'time');
+        const symbol = this.safeString (market, 'symbol');
+        const sideNumber = this.safeInteger (trade, 'side');
+        const side = (sideNumber === 1) ? 'buy' : 'sell';
+        const amount = this.safeString (trade, 'amount');
+        const volume = this.safeString (trade, 'volume');
+        return this.safeTrade ({
+            'info': trade,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'symbol': symbol,
+            'id': undefined,
+            'order': undefined,
+            'type': undefined,
+            'side': side,
+            'takerOrMaker': undefined,
+            'price': this.safeString (trade, 'price'),
+            'amount': amount,
+            'cost': volume,
+            'fee': undefined,
+        }, market);
+    }
+
+    parseOrderType (type_: Int) {
+        // int order_type, 1 Limit，3 Market
+        if (type_ === 1) {
+            return 'limit';
+        } else if (type_ === 3) {
+            return 'market';
+        } else {
+            throw Error ('unknown orderType: ' + this.numberToString (type_));
+        }
+    }
+
+    parseOrderSide (side: Int) {
+        if (side === 1) {
+            return 'buy';
+        } else {
+            return 'sell';
+        }
+    }
+
+    parseOrderStatus (status: Int) {
+        // Status 2 Outstanding，3 Partial filled，4 all filled，
+        // 5 cancel after partial filled，6 all cancel
+        const statusStr = this.numberToString (status);
+        const statusDict = {
+            '1': 'open',
+            '2': 'open',
+            '3': 'open',
+            '4': 'closed',
+            '5': 'open',
+            '6': 'canceled',
+        };
+        return this.safeString (statusDict, statusStr);
+    }
+
+    parseOrder (order: Dict, market?: Market): Order {
+        // const order = {
+        //     'order_id': '11574744030837944',
+        //     'trade_no': '499016576021202015341',
+        //     'symbol': 'BTC-USDT',
+        //     'price': '7900',
+        //     'quantity': '1',
+        //     'match_amt': '0',
+        //     'match_qty': '0',
+        //     'match_price': '',
+        //     'side': -1,
+        //     'order_type': 1,
+        //     'status': 6,
+        //     'create_at': 1574744151836,
+        // };
+        const timestamp = this.safeInteger (order, 'create_at');
+        const symbol = this.safeString (market, 'symbol');
+        const type_ = this.parseOrderType (this.safeInteger (order, 'order_type'));
+        const side = this.parseOrderSide (this.safeInteger (order, 'side'));
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'quantity');
+        const status = this.parseOrderStatus (this.safeInteger (order, 'status'));
+        const average = this.safeString (order, 'match_price');
+        const filled = this.safeString (order, 'match_qty', '0');
+        const cost = this.safeString (order, 'match_amt', '0');
+        return this.safeOrder ({
+            'info': order,
+            'id': this.safeString (order, 'order_id'),
+            'clientOrderId': undefined,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'lastTradeTimestamp': undefined,
+            'lastUpdateTimestamp': undefined,
+            'symbol': symbol,
+            'type': type_,
+            'timeInForce': undefined,
+            'postOnly': undefined,
+            'reduceOnly': undefined,
+            'side': side,
+            'price': price,
+            'triggerPrice': undefined,
+            'amount': amount,
+            'cost': cost,
+            'average': average,
+            'filled': filled,
+            'remaining': undefined,
+            'status': status,
+            'fee': undefined,
+            'trades': [],
+        }, market);
     }
 
     handleErrors (statusCode: int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any) {
