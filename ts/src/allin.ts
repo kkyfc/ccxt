@@ -23,7 +23,7 @@ export default class allin extends Exchange {
             'rateLimit': 20,
             'hostname': 'allin.com',
             'pro': true,
-            'certified': true,
+            'certified': false,
             'options': {
                 'sandboxMode': false,
                 'fetchMarkets': [
@@ -36,10 +36,10 @@ export default class allin extends Exchange {
             'has': {
                 'CORS': true,
                 'spot': true,
-                'margin': true,
-                'swap': true,
-                'future': true,
-                'option': true,
+                'margin': false,
+                'swap': false,
+                'future': false,
+                'option': false,
                 'borrowCrossMargin': true,
                 'cancelAllOrders': true,
                 'cancelAllOrdersAfter': true,
@@ -52,12 +52,12 @@ export default class allin extends Exchange {
                 'createMarketSellOrderWithCost': true,
                 'createOrder': true,
                 'createOrders': true,
-                'createOrderWithTakeProfitAndStopLoss': true,
-                'createPostOnlyOrder': true,
-                'createReduceOnlyOrder': true,
-                'createStopLimitOrder': true,
-                'createStopLossOrder': true,
-                'createStopMarketOrder': true,
+                'createOrderWithTakeProfitAndStopLoss': false,
+                'createPostOnlyOrder': false,
+                'createReduceOnlyOrder': false,
+                'createStopLimitOrder': false,
+                'createStopLossOrder': false,
+                'createStopMarketOrder': false,
                 'createStopOrder': false,
                 'createTakeProfitOrder': true,
                 'createTrailingAmountOrder': true,
@@ -106,10 +106,10 @@ export default class allin extends Exchange {
                 'fetchOpenOrders': true,
                 'fetchOption': true,
                 'fetchOptionChain': true,
-                'fetchOrder': false,
+                'fetchOrder': true,
                 'fetchOrderBook': true,
-                'fetchOrders': false,
-                'fetchOrderTrades': true,
+                'fetchOrders': true,
+                'fetchOrderTrades': false,
                 'fetchPosition': true,
                 'fetchPositionHistory': 'emulated',
                 'fetchPositions': true,
@@ -433,10 +433,6 @@ export default class allin extends Exchange {
         return this.parseOrderBook (result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
 
-    // async fetchOrder (id: string, symbol?: Str, params?: {}): Promise<Order> {
-
-    // }
-
     async fetchBalance (params?: {}): Promise<Balances> {
         /**
          * @method
@@ -494,7 +490,7 @@ export default class allin extends Exchange {
 
     // }
 
-    async fetchOrders (symbol?: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
+    async fetchOrders (symbol: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
         /**
          * @method
          * @name binance#fetchOrders
@@ -537,7 +533,7 @@ export default class allin extends Exchange {
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request = this.extend (params, {
+        const request: Dict = this.extend (params, {
             'symbol': market['id'],
             'side': 0,
         });
@@ -550,8 +546,98 @@ export default class allin extends Exchange {
             request['start'] = since;
         }
         const response = await this.privateGetOpenV1Orders (request);
-        const orders = this.safeList (response, 'data');
+        const orders = this.safeList (this.safeDict (response, 'data', {}), 'orders');
         return this.parseOrders (orders, market, since, limit, params);
+    }
+
+    async fetchOpenOrders (symbol?: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
+        /**
+         * @method
+         * @name allin#fetchOpenOrders
+         * @description fetch all unfilled currently open orders
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#active-orders
+         * @param {string} symbol unified market symbol of the market orders were made in
+         * @param {int} [since] not support
+         * @param {int} [limit] not support
+         */
+        // {
+        //     'code': 0,
+        //     'data': [
+        //         {
+        //             'symbol': 'BTC-USDT',
+        //             'order_id': '11574744030837944',
+        //             'trade_no': '499016576021202015341',
+        //             'price': '7900',
+        //             'quantity': '1',
+        //             'match_amt': '0',
+        //             'match_qty': '0',
+        //             'match_price': '',
+        //             'side': -1,
+        //             'order_type': 1,
+        //             'create_at': 1574744151836
+        //         },
+        //     ],
+        // }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request: Dict = this.extend (params, {
+            'symbol': market['id'],
+        });
+        const response = await this.privateGetOpenV1OrdersLast (request);
+        const orders = this.safeList (response, 'data');
+        return this.parseOrders (orders, market);
+    }
+
+    async fetchOrder (id: string, symbol?: Str, params?: {}): Promise<Order> {
+        /**
+         * @method
+         * @name allin#fetchOrder
+         * @description fetches information on an order made by the user
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#get-order-details
+         * @param {string} id the order id
+         * @param {string} symbol unified symbol of the market the order was made in
+         */
+        // {
+        //     'code': 0,
+        //     'data': {
+        //         'order_id': '11574751725833010',
+        //         'trade_no': '499073202290421221116',
+        //         'symbol': 'BTC-USDT',
+        //         'price': '70000',
+        //         'quantity': '0.0001',
+        //         'match_amt': '7',
+        //         'match_qty': '0.0001',
+        //         'match_price': '70000',
+        //         'fee': '0.0112',
+        //         'side': -1,
+        //         'order_type': 1,
+        //         'status': 4,
+        //         'create_at': 1574922846832,
+        //         'trades': [{
+        //             'amount': '7',
+        //             'price': '70000',
+        //             'quantity': '0.0001',
+        //             'fee': '0.0112',
+        //             'time': 1574922846833
+        //             }]
+        //     }
+        // }
+
+        if (id === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchOrder() requires a orderId argument');
+        }
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchOrder() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request: Dict = {
+            'order_id': id,
+            'symbol': market['id'],
+        };
+        const response = await this.privateGetOpenV1OrdersDetail (request);
+        const order = this.safeDict (response, 'data');
+        return this.parseOrder (order, market);
     }
 
     async fetchTrades (symbol: string, since?: Int, limit?: Int, params?: {}): Promise<Trade[]> {
@@ -588,6 +674,78 @@ export default class allin extends Exchange {
         const response = await this.publicGetOpenV1TradeMarket (request);
         const trades = this.safeList (response, 'data');
         return this.parseTrades (trades, market, since, limit);
+    }
+
+    async createOrder (symbol: string, type: OrderType, side: OrderSide, amount: number, price?: Num, params?: {}): Promise<Order> {
+        /**
+         * @method
+         * @name allin#createOrder
+         * @description create a trade order
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#place-new-order
+         * @param {string} symbol unified symbol of the market to create an order in
+         * @param {string} type 'market' or 'limit'
+         * @param {string} side 'buy' or 'sell'
+         * @param {float} amount how much of you want to trade in units of the base currency
+         * @param {float} [price] the price that the order is to be fullfilled, in units of the quote currency, ignored in market orders
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         */
+
+        // {
+        //     "code": 0,
+        //     "msg": "ok",
+        //     "data": {
+        //         "order_id": "xxx",
+        //         "trade_no": "xxx",
+        //     },
+        // }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const symbolId = this.safeString (market, 'id');
+        const request: Dict = this.createOrderRequest (
+            symbol,
+            type,
+            side,
+            amount,
+            price,
+            params,
+            market
+        );
+        const response = await this.privatePostOpenV1OrdersPlace (request);
+        const orderData = this.safeDict (response, 'data');
+        const timestamp = this.safeInteger (response, 'time');
+        return this.parseOrder ({
+            'order_id': this.safeString (orderData, 'order_id'),
+            'trade_no': this.safeString (orderData, 'trade_no'),
+            'symbol': symbolId,
+            'price': price,
+            'quantity': amount,
+            'match_amt': '0',
+            'match_qty': '0',
+            'match_price': '',
+            'side': side,
+            'order_type': type,
+            'status': 'open',
+            'create_at': timestamp,
+        }, market);
+    }
+
+    createOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
+        const orderType = this.toOrderType (type);
+        const orderSide = this.toOrderSide (side);
+        const request = {
+            'symbol': market['id'],
+            'side': orderSide,
+            'order_type': orderType,
+            'quantity': amount,
+        };
+        if (price !== undefined && orderType === 'limit') {
+            request['price'] = price;
+        }
+        const requestParams = this.omit (params, [
+            'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
+            'triggerPrice', 'trailingTriggerPrice',
+            'trailingPercent', 'quoteOrderQty' ]);
+        return this.extend (request, requestParams);
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -661,7 +819,7 @@ export default class allin extends Exchange {
         const originBalances = this.safeList (response, 'data', []);
         const timestamp = this.safeInteger (response, 'timestamp');
         const balances = {
-            'info': response,
+            'info': originBalances,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
         };
@@ -713,6 +871,14 @@ export default class allin extends Exchange {
         //             'side': 1,
         //             'time': 1719476275833,
         //             'volume': '0.150000' }
+
+        //         {
+        //             'amount': '7',
+        //             'price': '70000',
+        //             'quantity': '0.0001',
+        //             'fee': '0.0112',
+        //             'time': 1574922846833
+        //             }
         const timestamp = this.safeInteger (trade, 'time');
         const symbol = this.safeString (market, 'symbol');
         const sideNumber = this.safeInteger (trade, 'side');
@@ -747,11 +913,30 @@ export default class allin extends Exchange {
         }
     }
 
+    toOrderType (type_: string) {
+        // ccxt orderType to allin orderType
+        if (type_ === 'limit') {
+            return 'limit';
+        } else if (type_ === 'market') {
+            return 'market';
+        } else {
+            throw Error ('unknown orderType: ' + type_);
+        }
+    }
+
     parseOrderSide (side: Int) {
         if (side === 1) {
             return 'buy';
         } else {
             return 'sell';
+        }
+    }
+
+    toOrderSide (side: string) {
+        if (side === 'buy') {
+            return 1;
+        } else {
+            return -1;
         }
     }
 
@@ -764,16 +949,17 @@ export default class allin extends Exchange {
             '2': 'open',
             '3': 'open',
             '4': 'closed',
-            '5': 'open',
+            '5': 'closed',
             '6': 'canceled',
         };
         return this.safeString (statusDict, statusStr);
     }
 
     parseOrder (order: Dict, market?: Market): Order {
+        /// // fetchOrders ////
         // const order = {
         //     'order_id': '11574744030837944',
-        //     'trade_no': '499016576021202015341',
+        //     'trade_no': '499016576021202015341', // removed
         //     'symbol': 'BTC-USDT',
         //     'price': '7900',
         //     'quantity': '1',
@@ -785,6 +971,29 @@ export default class allin extends Exchange {
         //     'status': 6,
         //     'create_at': 1574744151836,
         // };
+        /// // order detail /////
+        //     'data': {
+        //         'order_id': '11574751725833010',
+        //         'trade_no': '499073202290421221116', // removed
+        //         'symbol': 'BTC-USDT',
+        //         'price': '70000',
+        //         'quantity': '0.0001',
+        //         'match_amt': '7',
+        //         'match_qty': '0.0001',
+        //         'match_price': '70000',
+        //         'fee': '0.0112',
+        //         'side': -1,
+        //         'order_type': 1,
+        //         'status': 4,
+        //         'create_at': 1574922846832,
+        //         'trades': [{
+        //             'amount': '7',
+        //             'price': '70000',
+        //             'quantity': '0.0001',
+        //             'fee': '0.0112',
+        //             'time': 1574922846833
+        //             }]
+        //     }
         const timestamp = this.safeInteger (order, 'create_at');
         const symbol = this.safeString (market, 'symbol');
         const type_ = this.parseOrderType (this.safeInteger (order, 'order_type'));
@@ -795,6 +1004,16 @@ export default class allin extends Exchange {
         const average = this.safeString (order, 'match_price');
         const filled = this.safeString (order, 'match_qty', '0');
         const cost = this.safeString (order, 'match_amt', '0');
+        const feeCost = this.safeString (order, 'fee', undefined);
+        let fee = undefined;
+        if (feeCost !== undefined) {
+            fee = {
+                'currency': this.safeString (order, 'quoteAsset'),
+                'cost': feeCost,
+                'rate': undefined,
+            };
+        }
+        const trades = this.safeList (order, 'trades', []);
         return this.safeOrder ({
             'info': order,
             'id': this.safeString (order, 'order_id'),
@@ -817,8 +1036,8 @@ export default class allin extends Exchange {
             'filled': filled,
             'remaining': undefined,
             'status': status,
-            'fee': undefined,
-            'trades': [],
+            'fee': fee,
+            'trades': trades,
         }, market);
     }
 
