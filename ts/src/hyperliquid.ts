@@ -8,7 +8,7 @@ import { TICK_SIZE, ROUND, SIGNIFICANT_DIGITS, DECIMAL_PLACES } from './base/fun
 import { keccak_256 as keccak } from './static_dependencies/noble-hashes/sha3.js';
 import { secp256k1 } from './static_dependencies/noble-curves/secp256k1.js';
 import { ecdsa } from './base/functions/crypto.js';
-import type { Market, TransferEntry, Balances, Int, OrderBook, OHLCV, Str, FundingRateHistory, Order, OrderType, OrderSide, Trade, Strings, Position, OrderRequest, Dict, Num, MarginModification, Currencies, CancellationRequest, int, Transaction, Currency } from './base/types.js';
+import type { Market, TransferEntry, Balances, Int, OrderBook, OHLCV, Str, FundingRateHistory, Order, OrderType, OrderSide, Trade, Strings, Position, OrderRequest, Dict, Num, MarginModification, Currencies, CancellationRequest, int, Transaction, Currency, TradingFeeInterface } from './base/types.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ export default class hyperliquid extends Exchange {
                 'fetchTickers': false,
                 'fetchTime': false,
                 'fetchTrades': true,
-                'fetchTradingFee': false,
+                'fetchTradingFee': true,
                 'fetchTradingFees': false,
                 'fetchTransfer': false,
                 'fetchTransfers': false,
@@ -454,24 +454,26 @@ export default class hyperliquid extends Exchange {
         for (let i = 0; i < meta.length; i++) {
             const market = this.safeDict (meta, i, {});
             const marketName = this.safeString (market, 'name');
-            if (marketName.indexOf ('/') < 0) {
-                // there are some weird spot markets in testnet, eg @2
-                continue;
-            }
-            const marketParts = marketName.split ('/');
-            const baseName = this.safeString (marketParts, 0);
-            const quoteId = this.safeString (marketParts, 1);
-            const base = this.safeCurrencyCode (baseName);
-            const quote = this.safeCurrencyCode (quoteId);
-            const symbol = base + '/' + quote;
+            // if (marketName.indexOf ('/') < 0) {
+            //     // there are some weird spot markets in testnet, eg @2
+            //     continue;
+            // }
+            // const marketParts = marketName.split ('/');
+            // const baseName = this.safeString (marketParts, 0);
+            // const quoteId = this.safeString (marketParts, 1);
             const fees = this.safeDict (this.fees, 'spot', {});
             const taker = this.safeNumber (fees, 'taker');
             const maker = this.safeNumber (fees, 'maker');
             const tokensPos = this.safeList (market, 'tokens', []);
             const baseTokenPos = this.safeInteger (tokensPos, 0);
-            // const quoteTokenPos = this.safeInteger (tokensPos, 1);
+            const quoteTokenPos = this.safeInteger (tokensPos, 1);
             const baseTokenInfo = this.safeDict (tokens, baseTokenPos, {});
-            // const quoteTokenInfo = this.safeDict (tokens, quoteTokenPos, {});
+            const quoteTokenInfo = this.safeDict (tokens, quoteTokenPos, {});
+            const baseName = this.safeString (baseTokenInfo, 'name');
+            const quoteId = this.safeString (quoteTokenInfo, 'name');
+            const base = this.safeCurrencyCode (baseName);
+            const quote = this.safeCurrencyCode (quoteId);
+            const symbol = base + '/' + quote;
             const innerBaseTokenInfo = this.safeDict (baseTokenInfo, 'spec', baseTokenInfo);
             // const innerQuoteTokenInfo = this.safeDict (quoteTokenInfo, 'spec', quoteTokenInfo);
             const amountPrecision = this.parseNumber (this.parsePrecision (this.safeString (innerBaseTokenInfo, 'szDecimals')));
@@ -604,7 +606,7 @@ export default class hyperliquid extends Exchange {
             'limits': {
                 'leverage': {
                     'min': undefined,
-                    'max': undefined,
+                    'max': this.safeInteger (market, 'maxLeverage'),
                 },
                 'amount': {
                     'min': undefined,
@@ -1042,7 +1044,7 @@ export default class hyperliquid extends Exchange {
          * @param {string} type 'market' or 'limit'
          * @param {string} side 'buy' or 'sell'
          * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float} [price] the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
+         * @param {float} [price] the price at which the order is to be fulfilled, in units of the quote currency, ignored in market orders
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          * @param {string} [params.timeInForce] 'Gtc', 'Ioc', 'Alo'
          * @param {bool} [params.postOnly] true or false whether the order is post-only
@@ -1179,7 +1181,7 @@ export default class hyperliquid extends Exchange {
             if (clientOrderId !== undefined) {
                 orderObj['c'] = clientOrderId;
             }
-            orderReq.push (this.extend (orderObj, orderParams));
+            orderReq.push (orderObj);
         }
         const vaultAddress = this.formatVaultAddress (this.safeString (params, 'vaultAddress'));
         const orderAction: Dict = {
@@ -1202,7 +1204,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         "status": "ok",
@@ -1306,7 +1308,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         "status":"ok",
@@ -1391,7 +1393,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         "status":"ok",
@@ -1438,7 +1440,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         "status":"err",
@@ -1460,7 +1462,7 @@ export default class hyperliquid extends Exchange {
          * @param {string} type 'market' or 'limit'
          * @param {string} side 'buy' or 'sell'
          * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float} [price] the price at which the order is to be fullfilled, in units of the base currency, ignored in market orders
+         * @param {float} [price] the price at which the order is to be fulfilled, in units of the quote currency, ignored in market orders
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          * @param {string} [params.timeInForce] 'Gtc', 'Ioc', 'Alo'
          * @param {bool} [params.postOnly] true or false whether the order is post-only
@@ -1558,7 +1560,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         "status": "ok",
@@ -2246,10 +2248,9 @@ export default class hyperliquid extends Exchange {
                 vaultAddress = vaultAddress.replace ('0x', '');
             }
         }
-        const extendedAction = this.extend (updateAction, params);
-        const signature = this.signL1Action (extendedAction, nonce, vaultAddress);
+        const signature = this.signL1Action (updateAction, nonce, vaultAddress);
         const request: Dict = {
-            'action': extendedAction,
+            'action': updateAction,
             'nonce': nonce,
             'signature': signature,
             // 'vaultAddress': vaultAddress,
@@ -2308,7 +2309,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         'response': {
@@ -2375,7 +2376,7 @@ export default class hyperliquid extends Exchange {
             params = this.omit (params, 'vaultAddress');
             request['vaultAddress'] = vaultAddress;
         }
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         //
         //     {
         //         'response': {
@@ -2444,7 +2445,7 @@ export default class hyperliquid extends Exchange {
             };
             const signature = this.signL1Action (action, nonce, vaultAddress);
             const innerRequest: Dict = {
-                'action': this.extend (action, params),
+                'action': action,
                 'nonce': nonce,
                 'signature': signature,
             };
@@ -2481,7 +2482,7 @@ export default class hyperliquid extends Exchange {
             'nonce': nonce,
             'signature': sig,
         };
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         return response;
     }
 
@@ -2528,7 +2529,7 @@ export default class hyperliquid extends Exchange {
             'nonce': nonce,
             'signature': sig,
         };
-        const response = await this.privatePostExchange (this.extend (request, params));
+        const response = await this.privatePostExchange (request);
         return this.parseTransaction (response);
     }
 
@@ -2557,6 +2558,114 @@ export default class hyperliquid extends Exchange {
             'comment': undefined,
             'internal': undefined,
             'fee': undefined,
+        };
+    }
+
+    async fetchTradingFee (symbol: string, params = {}): Promise<TradingFeeInterface> {
+        /**
+         * @method
+         * @name hyperliquid#fetchTradingFee
+         * @description fetch the trading fees for a market
+         * @param {string} symbol unified market symbol
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         * @param {string} [params.user] user address, will default to this.walletAddress if not provided
+         * @returns {object} a [fee structure]{@link https://docs.ccxt.com/#/?id=fee-structure}
+         */
+        await this.loadMarkets ();
+        let userAddress = undefined;
+        [ userAddress, params ] = this.handlePublicAddress ('fetchTradingFee', params);
+        const market = this.market (symbol);
+        const request: Dict = {
+            'type': 'userFees',
+            'user': userAddress,
+        };
+        const response = await this.publicPostInfo (this.extend (request, params));
+        //
+        //     {
+        //         "dailyUserVlm": [
+        //             {
+        //                 "date": "2024-07-08",
+        //                 "userCross": "0.0",
+        //                 "userAdd": "0.0",
+        //                 "exchange": "90597185.23639999"
+        //             }
+        //         ],
+        //         "feeSchedule": {
+        //             "cross": "0.00035",
+        //             "add": "0.0001",
+        //             "tiers": {
+        //                 "vip": [
+        //                     {
+        //                         "ntlCutoff": "5000000.0",
+        //                         "cross": "0.0003",
+        //                         "add": "0.00005"
+        //                     }
+        //                 ],
+        //                 "mm": [
+        //                     {
+        //                         "makerFractionCutoff": "0.005",
+        //                         "add": "-0.00001"
+        //                     }
+        //                 ]
+        //             },
+        //             "referralDiscount": "0.04"
+        //         },
+        //         "userCrossRate": "0.00035",
+        //         "userAddRate": "0.0001",
+        //         "activeReferralDiscount": "0.0"
+        //     }
+        //
+        const data: Dict = {
+            'userCrossRate': this.safeString (response, 'userCrossRate'),
+            'userAddRate': this.safeString (response, 'userAddRate'),
+        };
+        return this.parseTradingFee (data, market);
+    }
+
+    parseTradingFee (fee: Dict, market: Market = undefined): TradingFeeInterface {
+        //
+        //     {
+        //         "dailyUserVlm": [
+        //             {
+        //                 "date": "2024-07-08",
+        //                 "userCross": "0.0",
+        //                 "userAdd": "0.0",
+        //                 "exchange": "90597185.23639999"
+        //             }
+        //         ],
+        //         "feeSchedule": {
+        //             "cross": "0.00035",
+        //             "add": "0.0001",
+        //             "tiers": {
+        //                 "vip": [
+        //                     {
+        //                         "ntlCutoff": "5000000.0",
+        //                         "cross": "0.0003",
+        //                         "add": "0.00005"
+        //                     }
+        //                 ],
+        //                 "mm": [
+        //                     {
+        //                         "makerFractionCutoff": "0.005",
+        //                         "add": "-0.00001"
+        //                     }
+        //                 ]
+        //             },
+        //             "referralDiscount": "0.04"
+        //         },
+        //         "userCrossRate": "0.00035",
+        //         "userAddRate": "0.0001",
+        //         "activeReferralDiscount": "0.0"
+        //     }
+        //
+        const symbol = this.safeSymbol (undefined, market);
+        return {
+            'info': fee,
+            'symbol': symbol,
+            'maker': this.safeNumber (fee, 'userAddRate'),
+            'taker': this.safeNumber (fee, 'userCrossRate'),
+            'percentage': undefined,
+            'tierBased': undefined,
         };
     }
 
