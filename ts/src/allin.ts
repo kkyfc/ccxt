@@ -1,10 +1,10 @@
 //  ---------------------------------------------------------------------------
 
-import { stat } from 'node:fs';
+import type { Int, Num, Str, Dict, OrderSide, Balances, OrderType, Trade, OHLCV, Order, Ticker,
+    OrderBook, Market, MarketInterface } from './base/types.js';
 import Exchange from './abstract/allin.js';
-import { ExchangeError, ArgumentsRequired, OperationFailed, OperationRejected, InsufficientFunds, OrderNotFound, InvalidOrder, DDoSProtection, InvalidNonce, AuthenticationError, RateLimitExceeded, PermissionDenied, NotSupported, BadRequest, BadSymbol, AccountSuspended, OrderImmediatelyFillable, OnMaintenance, BadResponse, RequestTimeout, OrderNotFillable, MarginModeAlreadySet, MarketClosed, NetworkError } from './base/errors.js';
+import { ArgumentsRequired, BadRequest, NetworkError } from './base/errors.js';
 import { Precise } from './base/Precise.js';
-import type { TransferEntry, Int, OrderSide, Balances, OrderType, Trade, OHLCV, Order, FundingRateHistory, OpenInterest, Liquidation, OrderRequest, Str, Transaction, Ticker, OrderBook, Tickers, Market, Greeks, Strings, Currency, MarketInterface, MarginMode, MarginModes, Leverage, Leverages, Num, Option, MarginModification, TradingFeeInterface, Currencies, TradingFees, Conversion, CrossBorrowRate, IsolatedBorrowRates, IsolatedBorrowRate, Dict, TransferEntries, LeverageTier, LeverageTiers, int, Dictionary, Position, IndexType } from './base/types.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 
 //  ---------------------------------------------------------------------------xs
@@ -20,26 +20,20 @@ export default class allin extends Exchange {
             'countries': [ 'US' ],
             'version': 'v1',
             'userAgent': undefined,
-            'rateLimit': 20,
+            'rateLimit': 200,
             'hostname': 'allin.com',
-            'pro': true,
+            'pro': false,
             'certified': false,
             'options': {
                 'sandboxMode': false,
-                'fetchMarkets': [
-                    'spot', // allows CORS in browsers
-                    // 'linear', // allows CORS in browsers
-                    // 'inverse', // allows CORS in browsers
-                    // // 'option', // does not allow CORS, enable
-                ],
             },
             'has': {
                 'CORS': true,
                 'spot': true,
-                'margin': false,
-                'swap': false,
-                'future': false,
-                'option': false,
+                'margin': true,
+                'swap': true,
+                'future': true,
+                'option': true,
                 'borrowCrossMargin': true,
                 'cancelAllOrders': true,
                 'cancelAllOrdersAfter': true,
@@ -158,11 +152,17 @@ export default class allin extends Exchange {
                     'private': 'https://api.allintest.pro',
                 },
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
+                'doc': [ 'https://allinexchange.github.io/spot-docs/v1/en/#introduction' ],
+                'api': {
+                    'spot': 'https://api.allintest.pro',
+                    'futures': 'https://api.allintest.pro',
+                    'public': 'https://api.allintest.pro',
+                    'private': 'https://api.allintest.pro',
+                },
             },
             'api': {
                 'public': {
                     'get': {
-
                         '/open/v1/tickers/market': 0,
                         '/open/v1/depth/market': 0,
                         '/open/v1/trade/market': 0,
@@ -171,7 +171,7 @@ export default class allin extends Exchange {
                 },
                 'private': {
                     'get': {
-                        '/open/v1/tickers/exchange_info': 0,
+                        '/open/v1/tickers/exchange_info': 1,
                         '/open/v1/tickers': 1,
                         '/open/v1/balance': 1,
                         '/open/v1/timestamp': 1,
@@ -407,7 +407,6 @@ export default class allin extends Exchange {
          * @see https://allinexchange.github.io/spot-docs/v1/en/#depth
          * @see https://allinexchange.github.io/spot-docs/v1/en/#market-depth
          */
-
         // const orderbook = {
         //     'code': 0,
         //     'msg': 'ok',
@@ -440,7 +439,6 @@ export default class allin extends Exchange {
          * @description query for balance and get the amount of funds available for trading or funds locked in orders
          * @see https://allinexchange.github.io/spot-docs/v1/en/#account-balance
          */
-
         // const balances = { 'code': 0,
         //     'msg': 'ok',
         //     'data': [
@@ -466,7 +464,6 @@ export default class allin extends Exchange {
          * @param {int} [since] not support
          * @param {int} [limit] not support
          */
-
         // const kline = { 'code': 0,
         //     'msg': 'ok',
         //     'data':
@@ -486,10 +483,6 @@ export default class allin extends Exchange {
         return this.parseOHLCVs (klines, market, timeframe, since, limit);
     }
 
-    // fetchPosition( symbol: string, params?: {} ): Promise<Position> {
-
-    // }
-
     async fetchOrders (symbol: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
         /**
          * @method
@@ -503,7 +496,6 @@ export default class allin extends Exchange {
          * @param {string} [params.side] Direction，1 buy，-1 sell，0 all
          * @param {string} [params.end] Closing time, time stamp
          */
-
         // const orders = {
         //     'code': 0,
         //     'msg': 'ok',
@@ -622,7 +614,6 @@ export default class allin extends Exchange {
         //             }]
         //     }
         // }
-
         if (id === undefined) {
             throw new ArgumentsRequired (this.id + ' fetchOrder() requires a orderId argument');
         }
@@ -651,7 +642,6 @@ export default class allin extends Exchange {
          * @param {int} [limit] not support
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          */
-
         // const trades = { 'code': 0,
         //     'msg': 'ok',
         //     'data': [
@@ -689,7 +679,6 @@ export default class allin extends Exchange {
          * @param {float} [price] the price that the order is to be fullfilled, in units of the quote currency, ignored in market orders
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          */
-
         // {
         //     "code": 0,
         //     "msg": "ok",
@@ -713,6 +702,7 @@ export default class allin extends Exchange {
         const response = await this.privatePostOpenV1OrdersPlace (request);
         const orderData = this.safeDict (response, 'data');
         const timestamp = this.safeInteger (response, 'time');
+        this.log (response);
         return this.parseOrder ({
             'order_id': this.safeString (orderData, 'order_id'),
             'trade_no': this.safeString (orderData, 'trade_no'),
@@ -727,6 +717,29 @@ export default class allin extends Exchange {
             'status': 'open',
             'create_at': timestamp,
         }, market);
+    }
+
+    async cancelOrder (id: string, symbol?: Str, params?: {}): Promise<{}> {
+        /**
+         * @method
+         * @name allin#cancelOrder
+         * @description cancels an open order
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#cancel-an-order-in-order
+         * @param {string} id order id
+         * @param {string} symbol unified symbol of the market the order was made in
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         */
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request: Dict = {
+            'symbol': market['id'],
+            'order_id': id,
+        };
+        await this.privatePostOpenV1OrdersCancel (request);
+        return this.parseOrder ({}, market);
     }
 
     createOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
@@ -761,10 +774,23 @@ export default class allin extends Exchange {
             const v = this.hmac (this.encode (s), this.encode (this.secret), sha256);
             result['sign'] = v;
         }
-        if (method === 'GET' && Object.keys (result).length > 0) {
-            url += '?' + this.rawencode (result);
+        if (method === 'GET') {
+            if (Object.keys (result).length) {
+                url += '?' + this.rawencode (result);
+            }
         }
         result['url'] = url;
+        result['method'] = method;
+        if (headers) {
+            result['headers'] = headers;
+        } else {
+            result['headers'] = {};
+        }
+        if (body) {
+            result['body'] = body;
+        } else {
+            result['body'] = {};
+        }
         return result;
     }
 
@@ -871,7 +897,6 @@ export default class allin extends Exchange {
         //             'side': 1,
         //             'time': 1719476275833,
         //             'volume': '0.150000' }
-
         //         {
         //             'amount': '7',
         //             'price': '70000',
@@ -942,21 +967,21 @@ export default class allin extends Exchange {
 
     parseOrderStatus (status: Int) {
         // Status 2 Outstanding，3 Partial filled，4 all filled，
-        // 5 cancel after partial filled，6 all cancel
+        // 5 cancel after partial filled，
         const statusStr = this.numberToString (status);
         const statusDict = {
-            '1': 'open',
-            '2': 'open',
-            '3': 'open',
-            '4': 'closed',
-            '5': 'closed',
-            '6': 'canceled',
+            '1': 'open',        // no
+            '2': 'open',        // 2 Outstanding
+            '3': 'open',        // 3 Partial filled
+            '4': 'closed',      // 4 all filled
+            '5': 'canceled',    // 5 canceled after partial filled
+            '6': 'canceled',    // 6 all cancel
         };
         return this.safeString (statusDict, statusStr);
     }
 
     parseOrder (order: Dict, market?: Market): Order {
-        /// // fetchOrders ////
+        // // fetchOrders //
         // const order = {
         //     'order_id': '11574744030837944',
         //     'trade_no': '499016576021202015341', // removed
@@ -971,7 +996,7 @@ export default class allin extends Exchange {
         //     'status': 6,
         //     'create_at': 1574744151836,
         // };
-        /// // order detail /////
+        // // order detail //
         //     'data': {
         //         'order_id': '11574751725833010',
         //         'trade_no': '499073202290421221116', // removed
@@ -1041,7 +1066,7 @@ export default class allin extends Exchange {
         }, market);
     }
 
-    handleErrors (statusCode: int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any) {
+    handleErrors (statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any) {
         if (statusCode >= 400) {
             throw new NetworkError (this.id + ' ' + statusText);
         }
@@ -1058,9 +1083,11 @@ export default class allin extends Exchange {
         }
         const responseCode = this.safeInteger (response, 'code', 0);
         if (responseCode !== 0) {
+            const codeStr = this.numberToString (responseCode);
             const messageNew = this.safeString (response, 'msg');
-            const msg = this.id + ', code: ' + responseCode + ', ' + messageNew;
-            this.throwExactlyMatchedException (this.exceptions['exact'], responseCode, msg);
+            const msg = this.id + ', code: ' + codeStr + ', ' + messageNew;
+            this.log (response);
+            this.throwExactlyMatchedException (this.exceptions['exact'], codeStr, msg);
         }
     }
 }
