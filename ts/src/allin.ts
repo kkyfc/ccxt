@@ -778,6 +778,12 @@ export default class allin extends Exchange {
             if (Object.keys (result).length) {
                 url += '?' + this.rawencode (result);
             }
+        } else if (method === 'POST') {
+            if (body) {
+                result['body'] = body;
+            } else {
+                result['body'] = {};
+            }
         }
         result['url'] = url;
         result['method'] = method;
@@ -785,11 +791,6 @@ export default class allin extends Exchange {
             result['headers'] = headers;
         } else {
             result['headers'] = {};
-        }
-        if (body) {
-            result['body'] = body;
-        } else {
-            result['body'] = {};
         }
         return result;
     }
