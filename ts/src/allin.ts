@@ -1,13 +1,14 @@
+
 //  ---------------------------------------------------------------------------
 
-import type { Int, Str, Num, Dict, OrderSide, Balances, OrderType, Trade, OHLCV, Order, Ticker,
-    OrderBook, Market, MarketInterface } from './base/types.js';
 import Exchange from './abstract/allin.js';
-import { ArgumentsRequired, BadRequest, NetworkError } from './base/errors.js';
+import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
+import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int } from './base/types.js';
 
-//  ---------------------------------------------------------------------------xs
+//  ---------------------------------------------------------------------------
+
 /**
  * @class allin
  * @augments Exchange
@@ -22,7 +23,7 @@ export default class allin extends Exchange {
             'userAgent': undefined,
             'rateLimit': 200,
             'hostname': 'allin.com',
-            'pro': false,
+            'pro': true,
             'certified': false,
             'options': {
                 'sandboxMode': false,
@@ -195,10 +196,13 @@ export default class allin extends Exchange {
                 'spot': {
                     'exact': {
                         '1010004': BadRequest,
+                        '80005': BadRequest,
                     },
                 },
                 'exact': {
                     '1010004': BadRequest,
+                    '80005': BadRequest,
+                    '1010037': OrderNotFound, // order not found
                 },
             },
         });
@@ -712,8 +716,8 @@ export default class allin extends Exchange {
             'match_amt': '0',
             'match_qty': '0',
             'match_price': '',
-            'side': side,
-            'order_type': type,
+            'side': request['side'],
+            'order_type': request['order_type'],
             'status': 'open',
             'create_at': timestamp,
         }, market);
@@ -729,6 +733,23 @@ export default class allin extends Exchange {
          * @param {string} symbol unified symbol of the market the order was made in
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          */
+        // const response = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': { 'create_at': 1720775927804,
+        //         'left': '0.100000',
+        //         'match_amt': '0',
+        //         'match_price': '0',
+        //         'match_qty': '0',
+        //         'order_id': '40',
+        //         'order_type': 1,
+        //         'price': '60000.00',
+        //         'quantity': '0.100000',
+        //         'side': 1,
+        //         'status': 6,
+        //         'symbol': 'BTC-USDT',
+        //         'ticker': 'BTC-USDT',
+        //         'trade_no': '40545292203741231233614' },
+        //     'time': 1720775985 };
         if (symbol === undefined) {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
@@ -738,8 +759,9 @@ export default class allin extends Exchange {
             'symbol': market['id'],
             'order_id': id,
         };
-        await this.privatePostOpenV1OrdersCancel (request);
-        return this.parseOrder ({}, market);
+        const response = await this.privatePostOpenV1OrdersCancel (request);
+        const orderData = this.safeDict (response, 'data');
+        return this.parseOrder (orderData, market);
     }
 
     createOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
@@ -747,12 +769,12 @@ export default class allin extends Exchange {
         const orderSide = this.toOrderSide (side);
         const request = {
             'symbol': market['id'],
-            'side': orderSide,
+            'side': this.forceString (orderSide),
             'order_type': orderType,
-            'quantity': amount,
+            'quantity': this.forceString (amount),
         };
-        if (price !== undefined && orderType === 'limit') {
-            request['price'] = price;
+        if (price !== undefined && orderType === 'LIMIT') {
+            request['price'] = this.forceString (price);
         }
         const requestParams = this.omit (params, [
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
@@ -766,33 +788,36 @@ export default class allin extends Exchange {
         const nonce = this.nonce ().toString ();
         const ts = nonce;
         const client_id = this.apiKey;
-        let result = this.extend ({}, params);
+        let requestParams = this.extend ({}, params);
         if (api === 'private') {
             this.checkRequiredCredentials ();
-            result = this.extend (result, { 'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': this.apiKey });
+            requestParams = this.extend (requestParams, { 'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': this.apiKey });
             const s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts;
             const v = this.hmac (this.encode (s), this.encode (this.secret), sha256);
-            result['sign'] = v;
+            requestParams['sign'] = v;
         }
         if (method === 'GET') {
-            if (Object.keys (result).length) {
-                url += '?' + this.rawencode (result);
+            if (Object.keys (requestParams).length) {
+                url += '?' + this.rawencode (requestParams);
             }
         } else if (method === 'POST') {
-            if (body) {
-                result['body'] = body;
+            if (!body) {
+                body = {};
+            }
+            body = this.extend (body, requestParams);
+            const headersPost = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            };
+            if (!headers) {
+                headers = headersPost;
             } else {
-                result['body'] = {};
+                headers = this.extend (headers, headersPost);
             }
         }
-        result['url'] = url;
-        result['method'] = method;
-        if (headers) {
-            result['headers'] = headers;
-        } else {
-            result['headers'] = {};
+        if (body) {
+            body = this.urlencode (body);
         }
-        return result;
+        return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
     parseTicker (ticker: Dict, market: Market = undefined): Ticker {
@@ -928,25 +953,25 @@ export default class allin extends Exchange {
         }, market);
     }
 
-    parseOrderType (type_: Int) {
+    parseOrderType (type_: Str) {
         // int order_type, 1 Limit，3 Market
-        if (type_ === 1) {
+        if (type_ === 'LIMIT' || type_ === '1') {
             return 'limit';
-        } else if (type_ === 3) {
+        } else if (type_ === 'MARKET' || type_ === '3') {
             return 'market';
         } else {
-            throw Error ('unknown orderType: ' + this.numberToString (type_));
+            throw new ExchangeError ('unknown orderType: ' + this.numberToString (type_));
         }
     }
 
     toOrderType (type_: string) {
         // ccxt orderType to allin orderType
         if (type_ === 'limit') {
-            return 'limit';
+            return 'LIMIT';
         } else if (type_ === 'market') {
-            return 'market';
+            return 'MARKET';
         } else {
-            throw Error ('unknown orderType: ' + type_);
+            throw new ExchangeError ('unknown orderType: ' + type_);
         }
     }
 
@@ -1022,7 +1047,7 @@ export default class allin extends Exchange {
         //     }
         const timestamp = this.safeInteger (order, 'create_at');
         const symbol = this.safeString (market, 'symbol');
-        const type_ = this.parseOrderType (this.safeInteger (order, 'order_type'));
+        const type_ = this.parseOrderType (this.safeString (order, 'order_type'));
         const side = this.parseOrderSide (this.safeInteger (order, 'side'));
         const price = this.safeString (order, 'price');
         const amount = this.safeString (order, 'quantity');
@@ -1082,7 +1107,7 @@ export default class allin extends Exchange {
         if (response === undefined) {
             return undefined; // fallback to default error handler
         }
-        const responseCode = this.safeInteger (response, 'code', 0);
+        const responseCode: int = this.safeInteger (response, 'code', 0);
         if (responseCode !== 0) {
             const codeStr = this.numberToString (responseCode);
             const messageNew = this.safeString (response, 'msg');
