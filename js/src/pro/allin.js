@@ -7,6 +7,7 @@
 // ----------------------------------------------------------------------------
 import allinRest from '../allin.js';
 import { ArgumentsRequired, AuthenticationError, ExchangeError } from '../base/errors.js';
+import { ArrayCacheByTimestamp } from '../base/ws/Cache.js';
 import { sha256 } from '../static_dependencies/noble-hashes/sha256.js';
 // -----------------------------------------------------------------------------
 export default class allin extends allinRest {
@@ -299,23 +300,37 @@ export default class allin extends allinRest {
         if (!klineData) {
             return;
         }
-        // const marketId = this.safeString (klineData, 'symbol');
-        // const market = this.safeMarket (marketId, undefined, undefined);
-        // const timestamp = this.safeInteger (klineData, 'timestamp');
-        // const messageHash = this.safeString (klineData, 'topic');
-        const ticks = this.safeString(klineData, 'ticks');
+        const marketId = this.safeString(klineData, 'symbol');
+        const market = this.safeMarket(marketId, undefined, undefined);
+        const symbol = market['symbol'];
+        const messageHash = this.safeString(klineData, 'topic');
+        const ticks = this.safeList(klineData, 'ticks');
+        const timeframeId = this.safeString(klineData, 'type');
+        const timeframe = this.findTimeframe(timeframeId);
+        const ohlcvsByTimeframe = this.safeValue(this.ohlcvs, symbol);
+        if (ohlcvsByTimeframe === undefined) {
+            this.ohlcvs[symbol] = {};
+        }
+        let stored = this.safeValue(ohlcvsByTimeframe, timeframe);
+        if (stored === undefined) {
+            const limit = this.safeInteger(this.options, 'OHLCVLimit', 1000);
+            stored = new ArrayCacheByTimestamp(limit);
+            this.ohlcvs[symbol][timeframe] = stored;
+        }
         for (let i = 0; i < ticks.length; i++) {
             const tick = ticks[i];
             this.log(tick);
-            // const parsed = [
-            //     this.safeInteger (tick, 'timestamp'),
-            //     this.safeFloat (tick, 'open'),
-            //     this.safeFloat (tick, 'high'),
-            //     this.safeFloat (tick, 'low'),
-            //     this.safeFloat (tick, 'close'),
-            //     this.safeFloat (tick, 'volume'),
-            // ];
+            const parsed = [
+                this.safeInteger(tick, 'timestamp'),
+                this.safeFloat(tick, 'open'),
+                this.safeFloat(tick, 'high'),
+                this.safeFloat(tick, 'low'),
+                this.safeFloat(tick, 'close'),
+                this.safeFloat(tick, 'volume'),
+            ];
+            stored.append(parsed);
         }
+        client.resolve(stored, messageHash);
     }
     handleOrder(client, message) {
         // const orderMessage = {

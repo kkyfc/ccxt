@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 import ccxt.async_support
+from ccxt.async_support.base.ws.cache import ArrayCacheByTimestamp
 import hashlib
 from ccxt.base.types import Balances, Int, Order, OrderBook, Str
 from ccxt.async_support.base.ws.client import Client
@@ -290,22 +291,34 @@ class allin(ccxt.async_support.allin):
         klineData = self.safe_dict(result, 'data')
         if not klineData:
             return
-        # marketId = self.safe_string(klineData, 'symbol')
-        # market = self.safe_market(marketId, None, None)
-        # timestamp = self.safe_integer(klineData, 'timestamp')
-        # messageHash = self.safe_string(klineData, 'topic')
-        ticks = self.safe_string(klineData, 'ticks')
+        marketId = self.safe_string(klineData, 'symbol')
+        market = self.safe_market(marketId, None, None)
+        symbol = market['symbol']
+        messageHash = self.safe_string(klineData, 'topic')
+        ticks = self.safe_list(klineData, 'ticks')
+        timeframeId = self.safe_string(klineData, 'type')
+        timeframe = self.find_timeframe(timeframeId)
+        ohlcvsByTimeframe = self.safe_value(self.ohlcvs, symbol)
+        if ohlcvsByTimeframe is None:
+            self.ohlcvs[symbol] = {}
+        stored = self.safe_value(ohlcvsByTimeframe, timeframe)
+        if stored is None:
+            limit = self.safe_integer(self.options, 'OHLCVLimit', 1000)
+            stored = ArrayCacheByTimestamp(limit)
+            self.ohlcvs[symbol][timeframe] = stored
         for i in range(0, len(ticks)):
             tick = ticks[i]
             self.log(tick)
-            # parsed = [
-            #     self.safe_integer(tick, 'timestamp'),
-            #     self.safe_float(tick, 'open'),
-            #     self.safe_float(tick, 'high'),
-            #     self.safe_float(tick, 'low'),
-            #     self.safe_float(tick, 'close'),
-            #     self.safe_float(tick, 'volume'),
-            # ]
+            parsed = [
+                self.safe_integer(tick, 'timestamp'),
+                self.safe_float(tick, 'open'),
+                self.safe_float(tick, 'high'),
+                self.safe_float(tick, 'low'),
+                self.safe_float(tick, 'close'),
+                self.safe_float(tick, 'volume'),
+            ]
+            stored.append(parsed)
+        client.resolve(stored, messageHash)
 
     def handle_order(self, client: Client, message):
         # orderMessage = {

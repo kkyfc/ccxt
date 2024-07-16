@@ -314,23 +314,37 @@ class allin extends \ccxt\async\allin {
         if (!$klineData) {
             return;
         }
-        // $marketId = $this->safe_string($klineData, 'symbol');
-        // $market = $this->safe_market($marketId, null, null);
-        // $timestamp = $this->safe_integer($klineData, 'timestamp');
-        // $messageHash = $this->safe_string($klineData, 'topic');
-        $ticks = $this->safe_string($klineData, 'ticks');
+        $marketId = $this->safe_string($klineData, 'symbol');
+        $market = $this->safe_market($marketId, null, null);
+        $symbol = $market['symbol'];
+        $messageHash = $this->safe_string($klineData, 'topic');
+        $ticks = $this->safe_list($klineData, 'ticks');
+        $timeframeId = $this->safe_string($klineData, 'type');
+        $timeframe = $this->find_timeframe($timeframeId);
+        $ohlcvsByTimeframe = $this->safe_value($this->ohlcvs, $symbol);
+        if ($ohlcvsByTimeframe === null) {
+            $this->ohlcvs[$symbol] = array();
+        }
+        $stored = $this->safe_value($ohlcvsByTimeframe, $timeframe);
+        if ($stored === null) {
+            $limit = $this->safe_integer($this->options, 'OHLCVLimit', 1000);
+            $stored = new ArrayCacheByTimestamp ($limit);
+            $this->ohlcvs[$symbol][$timeframe] = $stored;
+        }
         for ($i = 0; $i < count($ticks); $i++) {
             $tick = $ticks[$i];
             $this->log($tick);
-            // $parsed = array(
-            //     $this->safe_integer($tick, 'timestamp'),
-            //     $this->safe_float($tick, 'open'),
-            //     $this->safe_float($tick, 'high'),
-            //     $this->safe_float($tick, 'low'),
-            //     $this->safe_float($tick, 'close'),
-            //     $this->safe_float($tick, 'volume'),
-            // );
+            $parsed = array(
+                $this->safe_integer($tick, 'timestamp'),
+                $this->safe_float($tick, 'open'),
+                $this->safe_float($tick, 'high'),
+                $this->safe_float($tick, 'low'),
+                $this->safe_float($tick, 'close'),
+                $this->safe_float($tick, 'volume'),
+            );
+            $stored->append ($parsed);
         }
+        $client->resolve ($stored, $messageHash);
     }
 
     public function handle_order(Client $client, $message) {

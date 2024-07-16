@@ -513,7 +513,7 @@ export default class allin extends Exchange {
     async fetchOrders(symbol, since, limit, params) {
         /**
          * @method
-         * @name binance#fetchOrders
+         * @name allin#fetchOrders
          * @description fetches information on multiple orders made by the user
          * @see https://allinexchange.github.io/spot-docs/v1/en/#order-history
          * @param {string} symbol unified market symbol of the market orders were made in
