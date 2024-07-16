@@ -6,7 +6,7 @@ var Precise = require('./base/Precise.js');
 var sha256 = require('./static_dependencies/noble-hashes/sha256.js');
 
 //  ---------------------------------------------------------------------------
-//  ---------------------------------------------------------------------------xs
+//  ---------------------------------------------------------------------------
 /**
  * @class allin
  * @augments Exchange
@@ -21,7 +21,7 @@ class allin extends allin$1 {
             'userAgent': undefined,
             'rateLimit': 200,
             'hostname': 'allin.com',
-            'pro': false,
+            'pro': true,
             'certified': false,
             'options': {
                 'sandboxMode': false,
@@ -194,10 +194,41 @@ class allin extends allin$1 {
                 'spot': {
                     'exact': {
                         '1010004': errors.BadRequest,
+                        '80005': errors.BadRequest,
                     },
                 },
                 'exact': {
+                    '1010037': errors.OrderNotFound,
+                    '1010312': errors.BadRequest,
+                    '1010313': errors.AuthenticationError,
+                    '1010314': errors.RateLimitExceeded,
+                    '1010315': errors.RateLimitExceeded,
+                    '1010316': errors.AuthenticationError,
+                    '1010007': errors.RateLimitExceeded,
+                    '1010325': errors.BadSymbol,
+                    '10500': errors.ExchangeError,
+                    '1010367': errors.OperationFailed,
+                    '1010006': errors.AuthenticationError,
+                    '1010009': errors.BadRequest,
+                    '1010010': errors.BadRequest,
+                    '1010008': errors.BadRequest,
+                    '80005': errors.BadRequest,
+                    '1010013': errors.BadRequest,
+                    '1010018': errors.BadRequest,
+                    '1010016': errors.BadRequest,
+                    '1010401': errors.BadRequest,
+                    '1010019': errors.BadRequest,
+                    '1010020': errors.BadRequest,
+                    '1010022': errors.BadRequest,
+                    '1010017': errors.BadRequest,
+                    '1010023': errors.BadRequest,
+                    '1010318': errors.BadRequest,
+                    '1010030': errors.OrderNotFound,
+                    '1010002': errors.BadRequest,
                     '1010004': errors.BadRequest,
+                    '1010406': errors.BadRequest,
+                    '1010005': errors.BadRequest,
+                    '1010364': errors.BadRequest, // symbol count cannot be more than 10
                 },
             },
         });
@@ -406,7 +437,7 @@ class allin extends allin$1 {
         };
         const response = await this.publicGetOpenV1DepthMarket(this.extend(request, params));
         const result = this.safeDict(response, 'data', {});
-        const timestamp = Date.now();
+        const timestamp = this.microseconds();
         return this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
     async fetchBalance(params) {
@@ -675,8 +706,8 @@ class allin extends allin$1 {
             'match_amt': '0',
             'match_qty': '0',
             'match_price': '',
-            'side': side,
-            'order_type': type,
+            'side': request['side'],
+            'order_type': request['order_type'],
             'status': 'open',
             'create_at': timestamp,
         }, market);
@@ -691,6 +722,23 @@ class allin extends allin$1 {
          * @param {string} symbol unified symbol of the market the order was made in
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          */
+        // const response = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': { 'create_at': 1720775927804,
+        //         'left': '0.100000',
+        //         'match_amt': '0',
+        //         'match_price': '0',
+        //         'match_qty': '0',
+        //         'order_id': '40',
+        //         'order_type': 1,
+        //         'price': '60000.00',
+        //         'quantity': '0.100000',
+        //         'side': 1,
+        //         'status': 6,
+        //         'symbol': 'BTC-USDT',
+        //         'ticker': 'BTC-USDT',
+        //         'trade_no': '40545292203741231233614' },
+        //     'time': 1720775985 };
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
@@ -700,20 +748,21 @@ class allin extends allin$1 {
             'symbol': market['id'],
             'order_id': id,
         };
-        await this.privatePostOpenV1OrdersCancel(request);
-        return this.parseOrder({}, market);
+        const response = await this.privatePostOpenV1OrdersCancel(request);
+        const orderData = this.safeDict(response, 'data');
+        return this.parseOrder(orderData, market);
     }
     createOrderRequest(symbol, type, side, amount, price, params, market) {
         const orderType = this.toOrderType(type);
         const orderSide = this.toOrderSide(side);
         const request = {
             'symbol': market['id'],
-            'side': orderSide,
+            'side': this.forceString(orderSide),
             'order_type': orderType,
-            'quantity': amount,
+            'quantity': this.forceString(amount),
         };
-        if (price !== undefined && orderType === 'limit') {
-            request['price'] = price;
+        if (price !== undefined && orderType === 'LIMIT') {
+            request['price'] = this.forceString(price);
         }
         const requestParams = this.omit(params, [
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
@@ -727,34 +776,38 @@ class allin extends allin$1 {
         const nonce = this.nonce().toString();
         const ts = nonce;
         const client_id = this.apiKey;
-        let result = this.extend({}, params);
+        let requestParams = this.extend({}, params);
         if (api === 'private') {
             this.checkRequiredCredentials();
-            result = this.extend(result, { 'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': this.apiKey });
+            requestParams = this.extend(requestParams, { 'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': this.apiKey });
             const s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts;
             const v = this.hmac(this.encode(s), this.encode(this.secret), sha256.sha256);
-            result['sign'] = v;
+            requestParams['sign'] = v;
         }
         if (method === 'GET') {
-            if (Object.keys(result).length) {
-                url += '?' + this.rawencode(result);
+            if (Object.keys(requestParams).length) {
+                url += '?' + this.rawencode(requestParams);
             }
         }
-        result['url'] = url;
-        result['method'] = method;
-        if (headers) {
-            result['headers'] = headers;
-        }
-        else {
-            result['headers'] = {};
+        else if (method === 'POST') {
+            if (!body) {
+                body = {};
+            }
+            body = this.extend(body, requestParams);
+            const headersPost = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            };
+            if (!headers) {
+                headers = headersPost;
+            }
+            else {
+                headers = this.extend(headers, headersPost);
+            }
         }
         if (body) {
-            result['body'] = body;
+            body = this.urlencode(body);
         }
-        else {
-            result['body'] = {};
-        }
-        return result;
+        return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
     parseTicker(ticker, market = undefined) {
         // const ticker = { 'symbol': 'BTC-USDT',
@@ -887,26 +940,26 @@ class allin extends allin$1 {
     }
     parseOrderType(type_) {
         // int order_type, 1 Limit，3 Market
-        if (type_ === 1) {
+        if (type_ === 'LIMIT' || type_ === '1') {
             return 'limit';
         }
-        else if (type_ === 3) {
+        else if (type_ === 'MARKET' || type_ === '3') {
             return 'market';
         }
         else {
-            throw Error('unknown orderType: ' + this.numberToString(type_));
+            throw new errors.ExchangeError('unknown orderType: ' + this.numberToString(type_));
         }
     }
     toOrderType(type_) {
         // ccxt orderType to allin orderType
         if (type_ === 'limit') {
-            return 'limit';
+            return 'LIMIT';
         }
         else if (type_ === 'market') {
-            return 'market';
+            return 'MARKET';
         }
         else {
-            throw Error('unknown orderType: ' + type_);
+            throw new errors.ExchangeError('unknown orderType: ' + type_);
         }
     }
     parseOrderSide(side) {
@@ -980,7 +1033,7 @@ class allin extends allin$1 {
         //     }
         const timestamp = this.safeInteger(order, 'create_at');
         const symbol = this.safeString(market, 'symbol');
-        const type_ = this.parseOrderType(this.safeInteger(order, 'order_type'));
+        const type_ = this.parseOrderType(this.safeString(order, 'order_type'));
         const side = this.parseOrderSide(this.safeInteger(order, 'side'));
         const price = this.safeString(order, 'price');
         const amount = this.safeString(order, 'quantity');

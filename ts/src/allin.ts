@@ -2,7 +2,7 @@
 //  ---------------------------------------------------------------------------
 
 import Exchange from './abstract/allin.js';
-import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound } from './base/errors.js';
+import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol, OperationFailed } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int } from './base/types.js';
@@ -200,9 +200,37 @@ export default class allin extends Exchange {
                     },
                 },
                 'exact': {
-                    '1010004': BadRequest,
-                    '80005': BadRequest,
                     '1010037': OrderNotFound, // order not found
+                    '1010312': BadRequest,
+                    '1010313': AuthenticationError,
+                    '1010314': RateLimitExceeded,   // Request cannot be more than %s/m
+                    '1010315': RateLimitExceeded,   // no authority, ip is not allowed
+                    '1010316': AuthenticationError, // no authority, sign is error
+                    '1010007': RateLimitExceeded,   // call too frequently
+                    '1010325': BadSymbol,           // symbol is empty
+                    '10500': ExchangeError,         // system error
+                    '1010367': OperationFailed,     // this ticker cannot be operated
+                    '1010006': AuthenticationError, // invalid user_id
+                    '1010009': BadRequest,          // side is error
+                    '1010010': BadRequest,          // time is error
+                    '1010008': BadRequest,          // status is error
+                    '80005': BadRequest,            // param error
+                    '1010013': BadRequest,          // ticker is paused
+                    '1010018': BadRequest,          // cannot place market price order
+                    '1010016': BadRequest,          // price is too small
+                    '1010401': BadRequest,          // price is too high
+                    '1010019': BadRequest,          // market price empty
+                    '1010020': BadRequest,          // order_type must 1 or 3
+                    '1010022': BadRequest,          // Below the minimum purchase price
+                    '1010017': BadRequest,          // Order amount cannot be less than %s
+                    '1010023': BadRequest,          // Below the minimum sell price
+                    '1010318': BadRequest,          // client_oid must be 21 in length, and must be numbers
+                    '1010030': OrderNotFound,       // order_id not exists
+                    '1010002': BadRequest,          // ticker_id is empty
+                    '1010004': BadRequest,          // kline type is error
+                    '1010406': BadRequest,          // Depth position error
+                    '1010005': BadRequest,          // data is empty
+                    '1010364': BadRequest,          // symbol count cannot be more than 10
                 },
             },
         });
@@ -432,7 +460,7 @@ export default class allin extends Exchange {
         };
         const response = await this.publicGetOpenV1DepthMarket (this.extend (request, params));
         const result = this.safeDict (response, 'data', {});
-        const timestamp = Date.now ();
+        const timestamp = this.microseconds ();
         return this.parseOrderBook (result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
 
@@ -490,7 +518,7 @@ export default class allin extends Exchange {
     async fetchOrders (symbol: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
         /**
          * @method
-         * @name binance#fetchOrders
+         * @name allin#fetchOrders
          * @description fetches information on multiple orders made by the user
          * @see https://allinexchange.github.io/spot-docs/v1/en/#order-history
          * @param {string} symbol unified market symbol of the market orders were made in
