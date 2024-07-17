@@ -420,11 +420,10 @@ class allin(Exchange, ImplicitAPI):
         }
         response = self.publicGetOpenV1TickersMarket(self.extend(request, params))
         timestamp = self.safe_integer(response, 'time')
-        if isinstance(response, list):
-            firstTicker = self.safe_dict(response, 0, {})
-            firstTicker['timestamp'] = timestamp
-            return self.parse_ticker(firstTicker, market)
-        return self.parse_ticker(response, market)
+        TickerList = self.safe_list(response, 'data', [])
+        firstTicker = self.safe_value(TickerList, 0, {})
+        firstTicker['timestamp'] = timestamp
+        return self.parse_ticker(firstTicker, market)
 
     def fetch_order_book(self, symbol: str, limit: Int, params: {}) -> OrderBook:
         """

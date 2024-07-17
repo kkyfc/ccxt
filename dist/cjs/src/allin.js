@@ -401,12 +401,10 @@ class allin extends allin$1 {
         };
         const response = await this.publicGetOpenV1TickersMarket(this.extend(request, params));
         const timestamp = this.safeInteger(response, 'time');
-        if (Array.isArray(response)) {
-            const firstTicker = this.safeDict(response, 0, {});
-            firstTicker['timestamp'] = timestamp;
-            return this.parseTicker(firstTicker, market);
-        }
-        return this.parseTicker(response, market);
+        const TickerList = this.safeList(response, 'data', []);
+        const firstTicker = this.safeValue(TickerList, 0, {});
+        firstTicker['timestamp'] = timestamp;
+        return this.parseTicker(firstTicker, market);
     }
     async fetchOrderBook(symbol, limit, params) {
         /**

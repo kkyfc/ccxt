@@ -427,12 +427,10 @@ class allin extends Exchange {
             );
             $response = Async\await($this->publicGetOpenV1TickersMarket ($this->extend($request, $params)));
             $timestamp = $this->safe_integer($response, 'time');
-            if (gettype($response) === 'array' && array_keys($response) === array_keys(array_keys($response))) {
-                $firstTicker = $this->safe_dict($response, 0, array());
-                $firstTicker['timestamp'] = $timestamp;
-                return $this->parse_ticker($firstTicker, $market);
-            }
-            return $this->parse_ticker($response, $market);
+            $TickerList = $this->safe_list($response, 'data', array());
+            $firstTicker = $this->safe_value($TickerList, 0, array());
+            $firstTicker['timestamp'] = $timestamp;
+            return $this->parse_ticker($firstTicker, $market);
         }) ();
     }
 
