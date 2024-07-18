@@ -396,7 +396,7 @@ class allin extends Exchange {
         ));
     }
 
-    public function fetch_ticker(string $symbol, ?array () $params): array {
+    public function fetch_ticker(string $symbol, $params = array ()): array {
         // $tickers = { 'code' => 0,
         //     'msg' => 'ok',
         //     'data' => array( array( 'symbol' => 'BTC-USDT',
@@ -416,14 +416,14 @@ class allin extends Exchange {
             'symbol' => $market['id'],
         );
         $response = $this->publicGetOpenV1TickersMarket ($this->extend($request, $params));
-        $timestamp = $this->safe_integer($response, 'time');
+        $timestamp = $this->safe_timestamp($response, 'time');
         $TickerList = $this->safe_list($response, 'data', array());
         $firstTicker = $this->safe_value($TickerList, 0, array());
         $firstTicker['timestamp'] = $timestamp;
         return $this->parse_ticker($firstTicker, $market);
     }
 
-    public function fetch_order_book(string $symbol, ?int $limit, ?array () $params): array {
+    public function fetch_order_book(string $symbol, ?int $limit = 50, $params = array ()): array {
         /**
          * fetches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
          * @see https://allinexchange.github.io/spot-docs/v1/en/#depth
@@ -450,11 +450,11 @@ class allin extends Exchange {
         );
         $response = $this->publicGetOpenV1DepthMarket ($this->extend($request, $params));
         $result = $this->safe_dict($response, 'data', array());
-        $timestamp = $this->microseconds();
+        $timestamp = $this->milliseconds();
         return $this->parse_order_book($result, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
     }
 
-    public function fetch_balance(?array () $params): array {
+    public function fetch_balance($params = array ()): array {
         /**
          * query for balance and get the amount of funds available for trading or funds locked in orders
          * @see https://allinexchange.github.io/spot-docs/v1/en/#account-balance
@@ -472,7 +472,7 @@ class allin extends Exchange {
         return $this->parse_balance($response);
     }
 
-    public function fetch_ohlcv(string $symbol, ?string $timeframe, ?int $since, ?int $limit, ?array () $params): array {
+    public function fetch_ohlcv(string $symbol, string $timeframe = '1m', ?int $since = null, ?int $limit = null, $params = array ()): array {
         /**
          * fetches historical candlestick data containing the open, high, low, and close price, and the volume of a $market
          * @see https://allinexchange.github.io/spot-docs/v1/en/#$market-k-line-2
@@ -489,6 +489,7 @@ class allin extends Exchange {
         //          array( 'time' => 1720072740, 'open' => '68000.00', 'close' => '68000.00', 'high' => '68000.00', 'low' => '68000.00', 'volume' => '0', 'amount' => '0' ),
         // ),
         //     'time' => 1720081645 );
+        $this->load_markets();
         $market = $this->market($symbol);
         $marketId = $this->market_id($symbol);
         $duration = $this->timeframes[$timeframe];
@@ -501,7 +502,7 @@ class allin extends Exchange {
         return $this->parse_ohlcvs($klines, $market, $timeframe, $since, $limit);
     }
 
-    public function fetch_orders(?string $symbol, ?int $since, ?int $limit, ?array () $params): array {
+    public function fetch_orders(?string $symbol, ?int $since = null, ?int $limit = null, $params = array ()): array {
         /**
          * fetches information on multiple $orders made by the user
          * @see https://allinexchange.github.io/spot-docs/v1/en/#order-history
@@ -558,7 +559,7 @@ class allin extends Exchange {
         return $this->parse_orders($orders, $market, $since, $limit, $params);
     }
 
-    public function fetch_open_orders(?string $symbol, ?int $since, ?int $limit, ?array () $params): array {
+    public function fetch_open_orders(?string $symbol, ?int $since = null, ?int $limit = null, $params = array ()): array {
         /**
          * fetch all unfilled currently open $orders
          * @see https://allinexchange.github.io/spot-docs/v1/en/#active-$orders
@@ -594,7 +595,7 @@ class allin extends Exchange {
         return $this->parse_orders($orders, $market);
     }
 
-    public function fetch_order(string $id, ?string $symbol, ?array () $params): array {
+    public function fetch_order(string $id, ?string $symbol, $params = array ()): array {
         /**
          * fetches information on an $order made by the user
          * @see https://allinexchange.github.io/spot-docs/v1/en/#get-$order-details
@@ -643,7 +644,7 @@ class allin extends Exchange {
         return $this->parse_order($order, $market);
     }
 
-    public function fetch_trades(string $symbol, ?int $since, ?int $limit, ?array () $params): array {
+    public function fetch_trades(string $symbol, ?int $since = null, ?int $limit = null, $params = array ()): array {
         /**
          * Each filled orders
          * @see https://allinexchange.github.io/spot-docs/v1/en/#each-filled-orders-2
@@ -676,7 +677,7 @@ class allin extends Exchange {
         return $this->parse_trades($trades, $market, $since, $limit);
     }
 
-    public function create_order(string $symbol, string $type, string $side, float $amount, ?float $price, ?array () $params): array {
+    public function create_order(string $symbol, string $type, string $side, float $amount, ?float $price, $params = array ()): array {
         /**
          * create a trade order
          * @see https://allinexchange.github.io/spot-docs/v1/en/#place-new-order
@@ -709,8 +710,7 @@ class allin extends Exchange {
         );
         $response = $this->privatePostOpenV1OrdersPlace ($request);
         $orderData = $this->safe_dict($response, 'data');
-        $timestamp = $this->safe_integer($response, 'time');
-        $this->log($response);
+        $timestamp = $this->safe_timestamp($response, 'time');
         return $this->parse_order(array(
             'order_id' => $this->safe_string($orderData, 'order_id'),
             'trade_no' => $this->safe_string($orderData, 'trade_no'),
@@ -727,7 +727,7 @@ class allin extends Exchange {
         ), $market);
     }
 
-    public function cancel_order(string $id, ?string $symbol, ?array () $params): {} {
+    public function cancel_order(string $id, ?string $symbol, $params = array ()): {} {
         /**
          * cancels an open order
          * @see https://allinexchange.github.io/spot-docs/v1/en/#cancel-an-order-in-order
@@ -838,7 +838,7 @@ class allin extends Exchange {
         $last = $this->safe_string($ticker, 'price');
         $baseVolume = $this->safe_string($ticker, 'volume'); // 数量
         $quoteVolume = $this->safe_string($ticker, 'amount'); // 金额
-        $timestamp = $this->safe_integer($ticker, 'timestamp');
+        $timestamp = $this->safe_timestamp($ticker, 'timestamp');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'info' => $ticker,
@@ -871,7 +871,7 @@ class allin extends Exchange {
         //         array( 'amount' => '99988000', 'freeze' => '6000', 'symbol' => 'USDT' ) ),
         //     'time' => 1720067861 );
         $originBalances = $this->safe_list($response, 'data', array());
-        $timestamp = $this->safe_integer($response, 'timestamp');
+        $timestamp = $this->safe_timestamp($response, 'timestamp');
         $balances = array(
             'info' => $originBalances,
             'timestamp' => $timestamp,
@@ -910,7 +910,7 @@ class allin extends Exchange {
         //     'amount' => '0' ),
         // );
         return array(
-            $this->safe_integer($ohlcv, 'time'),
+            $this->safe_timestamp($ohlcv, 'time'),
             $this->safe_integer($ohlcv, 'open'),
             $this->safe_integer($ohlcv, 'high'),
             $this->safe_integer($ohlcv, 'low'),
@@ -932,7 +932,7 @@ class allin extends Exchange {
         //             'fee' => '0.0112',
         //             'time' => 1574922846833
         //             }
-        $timestamp = $this->safe_integer($trade, 'time');
+        $timestamp = $this->safe_timestamp($trade, 'time');
         $symbol = $this->safe_string($market, 'symbol');
         $sideNumber = $this->safe_integer($trade, 'side');
         $side = ($sideNumber === 1) ? 'buy' : 'sell';
@@ -1047,7 +1047,7 @@ class allin extends Exchange {
         //             'time' => 1574922846833
         //             )]
         //     }
-        $timestamp = $this->safe_integer($order, 'create_at');
+        $timestamp = $this->safe_timestamp($order, 'create_at');
         $symbol = $this->safe_string($market, 'symbol');
         $type_ = $this->parse_order_type($this->safe_string($order, 'order_type'));
         $side = $this->parse_order_side($this->safe_integer($order, 'side'));

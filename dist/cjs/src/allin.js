@@ -380,7 +380,7 @@ class allin extends allin$1 {
             'info': market,
         });
     }
-    async fetchTicker(symbol, params) {
+    async fetchTicker(symbol, params = {}) {
         // const tickers = { 'code': 0,
         //     'msg': 'ok',
         //     'data': [ { 'symbol': 'BTC-USDT',
@@ -400,13 +400,13 @@ class allin extends allin$1 {
             'symbol': market['id'],
         };
         const response = await this.publicGetOpenV1TickersMarket(this.extend(request, params));
-        const timestamp = this.safeInteger(response, 'time');
+        const timestamp = this.safeTimestamp(response, 'time');
         const TickerList = this.safeList(response, 'data', []);
         const firstTicker = this.safeValue(TickerList, 0, {});
         firstTicker['timestamp'] = timestamp;
         return this.parseTicker(firstTicker, market);
     }
-    async fetchOrderBook(symbol, limit, params) {
+    async fetchOrderBook(symbol, limit = 50, params = {}) {
         /**
          * @method
          * @name allin#fetchOrderBook
@@ -435,10 +435,10 @@ class allin extends allin$1 {
         };
         const response = await this.publicGetOpenV1DepthMarket(this.extend(request, params));
         const result = this.safeDict(response, 'data', {});
-        const timestamp = this.microseconds();
+        const timestamp = this.milliseconds();
         return this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
-    async fetchBalance(params) {
+    async fetchBalance(params = {}) {
         /**
          * @method
          * @name allin#fetchBalance
@@ -457,7 +457,7 @@ class allin extends allin$1 {
         const response = await this.privateGetOpenV1Balance(params);
         return this.parseBalance(response);
     }
-    async fetchOHLCV(symbol, timeframe, since, limit, params) {
+    async fetchOHLCV(symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
         /**
          * @method
          * @name allin#fetchOHLCV
@@ -476,6 +476,7 @@ class allin extends allin$1 {
         //          { 'time': 1720072740, 'open': '68000.00', 'close': '68000.00', 'high': '68000.00', 'low': '68000.00', 'volume': '0', 'amount': '0' },
         // ],
         //     'time': 1720081645 };
+        await this.loadMarkets();
         const market = this.market(symbol);
         const marketId = this.marketId(symbol);
         const duration = this.timeframes[timeframe];
@@ -487,7 +488,7 @@ class allin extends allin$1 {
         const klines = this.safeList(response, 'data', []);
         return this.parseOHLCVs(klines, market, timeframe, since, limit);
     }
-    async fetchOrders(symbol, since, limit, params) {
+    async fetchOrders(symbol, since = undefined, limit = undefined, params = {}) {
         /**
          * @method
          * @name allin#fetchOrders
@@ -545,7 +546,7 @@ class allin extends allin$1 {
         const orders = this.safeList(this.safeDict(response, 'data', {}), 'orders');
         return this.parseOrders(orders, market, since, limit, params);
     }
-    async fetchOpenOrders(symbol, since, limit, params) {
+    async fetchOpenOrders(symbol, since = undefined, limit = undefined, params = {}) {
         /**
          * @method
          * @name allin#fetchOpenOrders
@@ -582,7 +583,7 @@ class allin extends allin$1 {
         const orders = this.safeList(response, 'data');
         return this.parseOrders(orders, market);
     }
-    async fetchOrder(id, symbol, params) {
+    async fetchOrder(id, symbol, params = {}) {
         /**
          * @method
          * @name allin#fetchOrder
@@ -632,7 +633,7 @@ class allin extends allin$1 {
         const order = this.safeDict(response, 'data');
         return this.parseOrder(order, market);
     }
-    async fetchTrades(symbol, since, limit, params) {
+    async fetchTrades(symbol, since = undefined, limit = undefined, params = {}) {
         /**
          * @method
          * @name allin#fetchTrades
@@ -666,7 +667,7 @@ class allin extends allin$1 {
         const trades = this.safeList(response, 'data');
         return this.parseTrades(trades, market, since, limit);
     }
-    async createOrder(symbol, type, side, amount, price, params) {
+    async createOrder(symbol, type, side, amount, price, params = {}) {
         /**
          * @method
          * @name allin#createOrder
@@ -693,8 +694,7 @@ class allin extends allin$1 {
         const request = this.createOrderRequest(symbol, type, side, amount, price, params, market);
         const response = await this.privatePostOpenV1OrdersPlace(request);
         const orderData = this.safeDict(response, 'data');
-        const timestamp = this.safeInteger(response, 'time');
-        this.log(response);
+        const timestamp = this.safeTimestamp(response, 'time');
         return this.parseOrder({
             'order_id': this.safeString(orderData, 'order_id'),
             'trade_no': this.safeString(orderData, 'trade_no'),
@@ -710,7 +710,7 @@ class allin extends allin$1 {
             'create_at': timestamp,
         }, market);
     }
-    async cancelOrder(id, symbol, params) {
+    async cancelOrder(id, symbol, params = {}) {
         /**
          * @method
          * @name allin#cancelOrder
@@ -823,7 +823,7 @@ class allin extends allin$1 {
         const last = this.safeString(ticker, 'price');
         const baseVolume = this.safeString(ticker, 'volume'); // 数量
         const quoteVolume = this.safeString(ticker, 'amount'); // 金额
-        const timestamp = this.safeInteger(ticker, 'timestamp');
+        const timestamp = this.safeTimestamp(ticker, 'timestamp');
         return this.safeTicker({
             'symbol': symbol,
             'info': ticker,
@@ -855,7 +855,7 @@ class allin extends allin$1 {
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
         const originBalances = this.safeList(response, 'data', []);
-        const timestamp = this.safeInteger(response, 'timestamp');
+        const timestamp = this.safeTimestamp(response, 'timestamp');
         const balances = {
             'info': originBalances,
             'timestamp': timestamp,
@@ -893,7 +893,7 @@ class allin extends allin$1 {
         //     'amount': '0' },
         // ];
         return [
-            this.safeInteger(ohlcv, 'time'),
+            this.safeTimestamp(ohlcv, 'time'),
             this.safeInteger(ohlcv, 'open'),
             this.safeInteger(ohlcv, 'high'),
             this.safeInteger(ohlcv, 'low'),
@@ -914,7 +914,7 @@ class allin extends allin$1 {
         //             'fee': '0.0112',
         //             'time': 1574922846833
         //             }
-        const timestamp = this.safeInteger(trade, 'time');
+        const timestamp = this.safeTimestamp(trade, 'time');
         const symbol = this.safeString(market, 'symbol');
         const sideNumber = this.safeInteger(trade, 'side');
         const side = (sideNumber === 1) ? 'buy' : 'sell';
@@ -1029,7 +1029,7 @@ class allin extends allin$1 {
         //             'time': 1574922846833
         //             }]
         //     }
-        const timestamp = this.safeInteger(order, 'create_at');
+        const timestamp = this.safeTimestamp(order, 'create_at');
         const symbol = this.safeString(market, 'symbol');
         const type_ = this.parseOrderType(this.safeString(order, 'order_type'));
         const side = this.parseOrderSide(this.safeInteger(order, 'side'));

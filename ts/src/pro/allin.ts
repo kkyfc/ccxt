@@ -63,7 +63,7 @@ export default class allin extends allinRest {
         });
     }
 
-    async watchOrderBook (symbol: string, limit?: Int, params = {}): Promise<OrderBook> {
+    async watchOrderBook (symbol: string, limit: Int = 50, params = {}): Promise<OrderBook> {
         /**
          * @method
          * @name alkin#watchOrderBook
@@ -113,7 +113,7 @@ export default class allin extends allinRest {
         return orderbook.limit ();
     }
 
-    async watchBalance (params?: {}): Promise<Balances> {
+    async watchBalance (params = {}): Promise<Balances> {
         /**
          * @method
          * @name allin#watchBalance
@@ -248,7 +248,7 @@ export default class allin extends allinRest {
         const abData = this.safeDict (result, 'data');
         const marketId = this.safeString (abData, 'symbol');
         const market = this.safeMarket (marketId, undefined, undefined);
-        const timestamp = this.safeInteger (abData, 'timestamp');
+        const timestamp = this.safeTimestamp (abData, 'timestamp');
         const messageHash = this.safeString (abData, 'topic');
         const symbol = market['symbol'];
         if (!(symbol in this.orderbooks)) {
@@ -328,9 +328,8 @@ export default class allin extends allinRest {
         }
         for (let i = 0; i < ticks.length; i++) {
             const tick = ticks[i];
-            this.log (tick);
             const parsed = [
-                this.safeInteger (tick, 'timestamp'),
+                this.safeTimestamp (tick, 'timestamp'),
                 this.safeFloat (tick, 'open'),
                 this.safeFloat (tick, 'high'),
                 this.safeFloat (tick, 'low'),
@@ -372,7 +371,7 @@ export default class allin extends allinRest {
         //     'error': null,
         // };
         const result = this.safeDict (message, 'result');
-        const timestamp = this.safeInteger (result, 'timestamp');
+        const timestamp = this.safeTimestamp (result, 'timestamp');
         const allinOrderStatus = this.safeInteger (result, 'status');
         const allinSymbol = this.safeString (result, 'symbol');
         const market = this.safeMarket (allinSymbol);
@@ -412,7 +411,7 @@ export default class allin extends allinRest {
             'info': result,
         };
         const safeOrder = this.safeOrder (order, market);
-        client.resolve (safeOrder, messageHash);
+        client.resolve ([ safeOrder ], messageHash);
     }
 
     handleBalance (client: Client, message) {
@@ -434,11 +433,11 @@ export default class allin extends allinRest {
         if (this.balance === undefined) {
             this.balance = {};
         }
-        if (this.balance['info'] === undefined) {
+        if (!this.safeDict (this.balance, 'info')) {
             this.balance['info'] = {};
         }
         this.balance['info'][token] = result;
-        const timestamp = this.microseconds ();
+        const timestamp = this.milliseconds ();
         this.balance['timestamp'] = timestamp;
         this.balance['datetime'] = this.iso8601 (timestamp);
         this.balance[token] = {
@@ -459,7 +458,7 @@ export default class allin extends allinRest {
     }
 
     handlePong (client, message) {
-        client.lastPong = this.microseconds ();
+        client.lastPong = this.milliseconds ();
         return message;
     }
 
@@ -507,7 +506,6 @@ export default class allin extends allinRest {
 
     handleMessage (client: Client, message) {
         const error = this.safeValue (message, 'error');
-        this.log ('message: ', message);
         if (error) {
             this.handleErrorMessage (client, message);
         }

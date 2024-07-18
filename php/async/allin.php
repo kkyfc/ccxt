@@ -405,7 +405,7 @@ class allin extends Exchange {
         ));
     }
 
-    public function fetch_ticker(string $symbol, ?array () $params): PromiseInterface {
+    public function fetch_ticker(string $symbol, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $params) {
             // $tickers = { 'code' => 0,
             //     'msg' => 'ok',
@@ -426,7 +426,7 @@ class allin extends Exchange {
                 'symbol' => $market['id'],
             );
             $response = Async\await($this->publicGetOpenV1TickersMarket ($this->extend($request, $params)));
-            $timestamp = $this->safe_integer($response, 'time');
+            $timestamp = $this->safe_timestamp($response, 'time');
             $TickerList = $this->safe_list($response, 'data', array());
             $firstTicker = $this->safe_value($TickerList, 0, array());
             $firstTicker['timestamp'] = $timestamp;
@@ -434,7 +434,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function fetch_order_book(string $symbol, ?int $limit, ?array () $params): PromiseInterface {
+    public function fetch_order_book(string $symbol, ?int $limit = 50, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $limit, $params) {
             /**
              * fetches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
@@ -462,12 +462,12 @@ class allin extends Exchange {
             );
             $response = Async\await($this->publicGetOpenV1DepthMarket ($this->extend($request, $params)));
             $result = $this->safe_dict($response, 'data', array());
-            $timestamp = $this->microseconds();
+            $timestamp = $this->milliseconds();
             return $this->parse_order_book($result, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
         }) ();
     }
 
-    public function fetch_balance(?array () $params): PromiseInterface {
+    public function fetch_balance($params = array ()): PromiseInterface {
         return Async\async(function () use ($params) {
             /**
              * query for balance and get the amount of funds available for trading or funds locked in orders
@@ -487,7 +487,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function fetch_ohlcv(string $symbol, ?string $timeframe, ?int $since, ?int $limit, ?array () $params): PromiseInterface {
+    public function fetch_ohlcv(string $symbol, string $timeframe = '1m', ?int $since = null, ?int $limit = null, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $timeframe, $since, $limit, $params) {
             /**
              * fetches historical candlestick data containing the open, high, low, and close price, and the volume of a $market
@@ -505,6 +505,7 @@ class allin extends Exchange {
             //          array( 'time' => 1720072740, 'open' => '68000.00', 'close' => '68000.00', 'high' => '68000.00', 'low' => '68000.00', 'volume' => '0', 'amount' => '0' ),
             // ),
             //     'time' => 1720081645 );
+            Async\await($this->load_markets());
             $market = $this->market($symbol);
             $marketId = $this->market_id($symbol);
             $duration = $this->timeframes[$timeframe];
@@ -518,7 +519,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function fetch_orders(?string $symbol, ?int $since, ?int $limit, ?array () $params): PromiseInterface {
+    public function fetch_orders(?string $symbol, ?int $since = null, ?int $limit = null, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $since, $limit, $params) {
             /**
              * fetches information on multiple $orders made by the user
@@ -577,7 +578,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function fetch_open_orders(?string $symbol, ?int $since, ?int $limit, ?array () $params): PromiseInterface {
+    public function fetch_open_orders(?string $symbol, ?int $since = null, ?int $limit = null, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $since, $limit, $params) {
             /**
              * fetch all unfilled currently open $orders
@@ -615,7 +616,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function fetch_order(string $id, ?string $symbol, ?array () $params): PromiseInterface {
+    public function fetch_order(string $id, ?string $symbol, $params = array ()): PromiseInterface {
         return Async\async(function () use ($id, $symbol, $params) {
             /**
              * fetches information on an $order made by the user
@@ -666,7 +667,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function fetch_trades(string $symbol, ?int $since, ?int $limit, ?array () $params): PromiseInterface {
+    public function fetch_trades(string $symbol, ?int $since = null, ?int $limit = null, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $since, $limit, $params) {
             /**
              * Each filled orders
@@ -701,7 +702,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function create_order(string $symbol, string $type, string $side, float $amount, ?float $price, ?array () $params): PromiseInterface {
+    public function create_order(string $symbol, string $type, string $side, float $amount, ?float $price, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $type, $side, $amount, $price, $params) {
             /**
              * create a trade order
@@ -735,8 +736,7 @@ class allin extends Exchange {
             );
             $response = Async\await($this->privatePostOpenV1OrdersPlace ($request));
             $orderData = $this->safe_dict($response, 'data');
-            $timestamp = $this->safe_integer($response, 'time');
-            $this->log($response);
+            $timestamp = $this->safe_timestamp($response, 'time');
             return $this->parse_order(array(
                 'order_id' => $this->safe_string($orderData, 'order_id'),
                 'trade_no' => $this->safe_string($orderData, 'trade_no'),
@@ -754,7 +754,7 @@ class allin extends Exchange {
         }) ();
     }
 
-    public function cancel_order(string $id, ?string $symbol, ?array () $params): PromiseInterface {
+    public function cancel_order(string $id, ?string $symbol, $params = array ()): PromiseInterface {
         return Async\async(function () use ($id, $symbol, $params) {
             /**
              * cancels an open order
@@ -867,7 +867,7 @@ class allin extends Exchange {
         $last = $this->safe_string($ticker, 'price');
         $baseVolume = $this->safe_string($ticker, 'volume'); // 数量
         $quoteVolume = $this->safe_string($ticker, 'amount'); // 金额
-        $timestamp = $this->safe_integer($ticker, 'timestamp');
+        $timestamp = $this->safe_timestamp($ticker, 'timestamp');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'info' => $ticker,
@@ -900,7 +900,7 @@ class allin extends Exchange {
         //         array( 'amount' => '99988000', 'freeze' => '6000', 'symbol' => 'USDT' ) ),
         //     'time' => 1720067861 );
         $originBalances = $this->safe_list($response, 'data', array());
-        $timestamp = $this->safe_integer($response, 'timestamp');
+        $timestamp = $this->safe_timestamp($response, 'timestamp');
         $balances = array(
             'info' => $originBalances,
             'timestamp' => $timestamp,
@@ -939,7 +939,7 @@ class allin extends Exchange {
         //     'amount' => '0' ),
         // );
         return array(
-            $this->safe_integer($ohlcv, 'time'),
+            $this->safe_timestamp($ohlcv, 'time'),
             $this->safe_integer($ohlcv, 'open'),
             $this->safe_integer($ohlcv, 'high'),
             $this->safe_integer($ohlcv, 'low'),
@@ -961,7 +961,7 @@ class allin extends Exchange {
         //             'fee' => '0.0112',
         //             'time' => 1574922846833
         //             }
-        $timestamp = $this->safe_integer($trade, 'time');
+        $timestamp = $this->safe_timestamp($trade, 'time');
         $symbol = $this->safe_string($market, 'symbol');
         $sideNumber = $this->safe_integer($trade, 'side');
         $side = ($sideNumber === 1) ? 'buy' : 'sell';
@@ -1076,7 +1076,7 @@ class allin extends Exchange {
         //             'time' => 1574922846833
         //             )]
         //     }
-        $timestamp = $this->safe_integer($order, 'create_at');
+        $timestamp = $this->safe_timestamp($order, 'create_at');
         $symbol = $this->safe_string($market, 'symbol');
         $type_ = $this->parse_order_type($this->safe_string($order, 'order_type'));
         $side = $this->parse_order_side($this->safe_integer($order, 'side'));

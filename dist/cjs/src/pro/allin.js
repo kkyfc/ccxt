@@ -59,7 +59,7 @@ class allin extends allin$1 {
             },
         });
     }
-    async watchOrderBook(symbol, limit, params = {}) {
+    async watchOrderBook(symbol, limit = 50, params = {}) {
         /**
          * @method
          * @name alkin#watchOrderBook
@@ -108,7 +108,7 @@ class allin extends allin$1 {
         const orderbook = await this.watch(url, messageHash, request, messageHash, true);
         return orderbook.limit();
     }
-    async watchBalance(params) {
+    async watchBalance(params = {}) {
         /**
          * @method
          * @name allin#watchBalance
@@ -239,7 +239,7 @@ class allin extends allin$1 {
         const abData = this.safeDict(result, 'data');
         const marketId = this.safeString(abData, 'symbol');
         const market = this.safeMarket(marketId, undefined, undefined);
-        const timestamp = this.safeInteger(abData, 'timestamp');
+        const timestamp = this.safeTimestamp(abData, 'timestamp');
         const messageHash = this.safeString(abData, 'topic');
         const symbol = market['symbol'];
         if (!(symbol in this.orderbooks)) {
@@ -316,9 +316,8 @@ class allin extends allin$1 {
         }
         for (let i = 0; i < ticks.length; i++) {
             const tick = ticks[i];
-            this.log(tick);
             const parsed = [
-                this.safeInteger(tick, 'timestamp'),
+                this.safeTimestamp(tick, 'timestamp'),
                 this.safeFloat(tick, 'open'),
                 this.safeFloat(tick, 'high'),
                 this.safeFloat(tick, 'low'),
@@ -359,7 +358,7 @@ class allin extends allin$1 {
         //     'error': null,
         // };
         const result = this.safeDict(message, 'result');
-        const timestamp = this.safeInteger(result, 'timestamp');
+        const timestamp = this.safeTimestamp(result, 'timestamp');
         const allinOrderStatus = this.safeInteger(result, 'status');
         const allinSymbol = this.safeString(result, 'symbol');
         const market = this.safeMarket(allinSymbol);
@@ -399,7 +398,7 @@ class allin extends allin$1 {
             'info': result,
         };
         const safeOrder = this.safeOrder(order, market);
-        client.resolve(safeOrder, messageHash);
+        client.resolve([safeOrder], messageHash);
     }
     handleBalance(client, message) {
         // {
@@ -420,11 +419,11 @@ class allin extends allin$1 {
         if (this.balance === undefined) {
             this.balance = {};
         }
-        if (this.balance['info'] === undefined) {
+        if (!this.safeDict(this.balance, 'info')) {
             this.balance['info'] = {};
         }
         this.balance['info'][token] = result;
-        const timestamp = this.microseconds();
+        const timestamp = this.milliseconds();
         this.balance['timestamp'] = timestamp;
         this.balance['datetime'] = this.iso8601(timestamp);
         this.balance[token] = {
@@ -443,7 +442,7 @@ class allin extends allin$1 {
         };
     }
     handlePong(client, message) {
-        client.lastPong = this.microseconds();
+        client.lastPong = this.milliseconds();
         return message;
     }
     handleAuthenticate(client, message) {
@@ -489,7 +488,6 @@ class allin extends allin$1 {
     }
     handleMessage(client, message) {
         const error = this.safeValue(message, 'error');
-        this.log('message: ', message);
         if (error) {
             this.handleErrorMessage(client, message);
         }

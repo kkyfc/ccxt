@@ -402,7 +402,7 @@ export default class allin extends Exchange {
         });
     }
 
-    async fetchTicker (symbol: string, params?: {}): Promise<Ticker> {
+    async fetchTicker (symbol: string, params = {}): Promise<Ticker> {
         // const tickers = { 'code': 0,
         //     'msg': 'ok',
         //     'data': [ { 'symbol': 'BTC-USDT',
@@ -422,14 +422,14 @@ export default class allin extends Exchange {
             'symbol': market['id'],
         };
         const response = await this.publicGetOpenV1TickersMarket (this.extend (request, params));
-        const timestamp = this.safeInteger (response, 'time');
+        const timestamp = this.safeTimestamp (response, 'time');
         const TickerList = this.safeList (response, 'data', []);
         const firstTicker = this.safeValue (TickerList, 0, {});
         firstTicker['timestamp'] = timestamp;
         return this.parseTicker (firstTicker, market);
     }
 
-    async fetchOrderBook (symbol: string, limit?: Int, params?: {}): Promise<OrderBook> {
+    async fetchOrderBook (symbol: string, limit: Int = 50, params = {}): Promise<OrderBook> {
         /**
          * @method
          * @name allin#fetchOrderBook
@@ -458,11 +458,11 @@ export default class allin extends Exchange {
         };
         const response = await this.publicGetOpenV1DepthMarket (this.extend (request, params));
         const result = this.safeDict (response, 'data', {});
-        const timestamp = this.microseconds ();
+        const timestamp = this.milliseconds ();
         return this.parseOrderBook (result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
 
-    async fetchBalance (params?: {}): Promise<Balances> {
+    async fetchBalance (params = {}): Promise<Balances> {
         /**
          * @method
          * @name allin#fetchBalance
@@ -482,7 +482,7 @@ export default class allin extends Exchange {
         return this.parseBalance (response);
     }
 
-    async fetchOHLCV (symbol: string, timeframe?: string, since?: Int, limit?: Int, params?: {}): Promise<OHLCV[]> {
+    async fetchOHLCV (symbol: string, timeframe: string = '1m', since: Int = undefined, limit: Int = undefined, params = {}): Promise<OHLCV[]> {
         /**
          * @method
          * @name allin#fetchOHLCV
@@ -501,6 +501,7 @@ export default class allin extends Exchange {
         //          { 'time': 1720072740, 'open': '68000.00', 'close': '68000.00', 'high': '68000.00', 'low': '68000.00', 'volume': '0', 'amount': '0' },
         // ],
         //     'time': 1720081645 };
+        await this.loadMarkets ();
         const market = this.market (symbol);
         const marketId = this.marketId (symbol);
         const duration = this.timeframes[timeframe];
@@ -513,7 +514,7 @@ export default class allin extends Exchange {
         return this.parseOHLCVs (klines, market, timeframe, since, limit);
     }
 
-    async fetchOrders (symbol: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
+    async fetchOrders (symbol: Str, since: Int = undefined, limit: Int = undefined, params = {}): Promise<Order[]> {
         /**
          * @method
          * @name allin#fetchOrders
@@ -572,7 +573,7 @@ export default class allin extends Exchange {
         return this.parseOrders (orders, market, since, limit, params);
     }
 
-    async fetchOpenOrders (symbol?: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]> {
+    async fetchOpenOrders (symbol: Str, since: Int = undefined, limit: Int = undefined, params = {}): Promise<Order[]> {
         /**
          * @method
          * @name allin#fetchOpenOrders
@@ -610,7 +611,7 @@ export default class allin extends Exchange {
         return this.parseOrders (orders, market);
     }
 
-    async fetchOrder (id: string, symbol?: Str, params?: {}): Promise<Order> {
+    async fetchOrder (id: string, symbol?: Str, params = {}): Promise<Order> {
         /**
          * @method
          * @name allin#fetchOrder
@@ -661,7 +662,7 @@ export default class allin extends Exchange {
         return this.parseOrder (order, market);
     }
 
-    async fetchTrades (symbol: string, since?: Int, limit?: Int, params?: {}): Promise<Trade[]> {
+    async fetchTrades (symbol: string, since: Int = undefined, limit: Int = undefined, params = {}): Promise<Trade[]> {
         /**
          * @method
          * @name allin#fetchTrades
@@ -696,7 +697,7 @@ export default class allin extends Exchange {
         return this.parseTrades (trades, market, since, limit);
     }
 
-    async createOrder (symbol: string, type: OrderType, side: OrderSide, amount: number, price?: Num, params?: {}): Promise<Order> {
+    async createOrder (symbol: string, type: OrderType, side: OrderSide, amount: number, price?: Num, params = {}): Promise<Order> {
         /**
          * @method
          * @name allin#createOrder
@@ -731,8 +732,7 @@ export default class allin extends Exchange {
         );
         const response = await this.privatePostOpenV1OrdersPlace (request);
         const orderData = this.safeDict (response, 'data');
-        const timestamp = this.safeInteger (response, 'time');
-        this.log (response);
+        const timestamp = this.safeTimestamp (response, 'time');
         return this.parseOrder ({
             'order_id': this.safeString (orderData, 'order_id'),
             'trade_no': this.safeString (orderData, 'trade_no'),
@@ -749,7 +749,7 @@ export default class allin extends Exchange {
         }, market);
     }
 
-    async cancelOrder (id: string, symbol?: Str, params?: {}): Promise<{}> {
+    async cancelOrder (id: string, symbol: Str, params = {}): Promise<{}> {
         /**
          * @method
          * @name allin#cancelOrder
@@ -862,7 +862,7 @@ export default class allin extends Exchange {
         const last = this.safeString (ticker, 'price');
         const baseVolume = this.safeString (ticker, 'volume'); // 数量
         const quoteVolume = this.safeString (ticker, 'amount'); // 金额
-        const timestamp = this.safeInteger (ticker, 'timestamp');
+        const timestamp = this.safeTimestamp (ticker, 'timestamp');
         return this.safeTicker ({
             'symbol': symbol,
             'info': ticker,
@@ -895,7 +895,7 @@ export default class allin extends Exchange {
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
         const originBalances = this.safeList (response, 'data', []);
-        const timestamp = this.safeInteger (response, 'timestamp');
+        const timestamp = this.safeTimestamp (response, 'timestamp');
         const balances = {
             'info': originBalances,
             'timestamp': timestamp,
@@ -934,7 +934,7 @@ export default class allin extends Exchange {
         //     'amount': '0' },
         // ];
         return [
-            this.safeInteger (ohlcv, 'time'),
+            this.safeTimestamp (ohlcv, 'time'),
             this.safeInteger (ohlcv, 'open'),
             this.safeInteger (ohlcv, 'high'),
             this.safeInteger (ohlcv, 'low'),
@@ -956,7 +956,7 @@ export default class allin extends Exchange {
         //             'fee': '0.0112',
         //             'time': 1574922846833
         //             }
-        const timestamp = this.safeInteger (trade, 'time');
+        const timestamp = this.safeTimestamp (trade, 'time');
         const symbol = this.safeString (market, 'symbol');
         const sideNumber = this.safeInteger (trade, 'side');
         const side = (sideNumber === 1) ? 'buy' : 'sell';
@@ -1071,7 +1071,7 @@ export default class allin extends Exchange {
         //             'time': 1574922846833
         //             }]
         //     }
-        const timestamp = this.safeInteger (order, 'create_at');
+        const timestamp = this.safeTimestamp (order, 'create_at');
         const symbol = this.safeString (market, 'symbol');
         const type_ = this.parseOrderType (this.safeString (order, 'order_type'));
         const side = this.parseOrderSide (this.safeInteger (order, 'side'));

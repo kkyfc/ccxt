@@ -6,7 +6,7 @@
 from ccxt.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import hashlib
-from ccxt.base.types import Any, Balances, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Ticker, Trade, Num, Str, Int
+from ccxt.base.types import Any, Balances, Int, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Ticker, Trade, Num, Str
 from typing import List
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
@@ -399,7 +399,7 @@ class allin(Exchange, ImplicitAPI):
             'info': market,
         })
 
-    def fetch_ticker(self, symbol: str, params: {}) -> Ticker:
+    def fetch_ticker(self, symbol: str, params={}) -> Ticker:
         # tickers = {'code': 0,
         #     'msg': 'ok',
         #     'data': [{'symbol': 'BTC-USDT',
@@ -419,13 +419,13 @@ class allin(Exchange, ImplicitAPI):
             'symbol': market['id'],
         }
         response = self.publicGetOpenV1TickersMarket(self.extend(request, params))
-        timestamp = self.safe_integer(response, 'time')
+        timestamp = self.safe_timestamp(response, 'time')
         TickerList = self.safe_list(response, 'data', [])
         firstTicker = self.safe_value(TickerList, 0, {})
         firstTicker['timestamp'] = timestamp
         return self.parse_ticker(firstTicker, market)
 
-    def fetch_order_book(self, symbol: str, limit: Int, params: {}) -> OrderBook:
+    def fetch_order_book(self, symbol: str, limit: Int = 50, params={}) -> OrderBook:
         """
         fetches information on open orders with bid(buy) and ask(sell) prices, volumes and other data
         :see: https://allinexchange.github.io/spot-docs/v1/en/#depth
@@ -451,10 +451,10 @@ class allin(Exchange, ImplicitAPI):
         }
         response = self.publicGetOpenV1DepthMarket(self.extend(request, params))
         result = self.safe_dict(response, 'data', {})
-        timestamp = self.microseconds()
+        timestamp = self.milliseconds()
         return self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
 
-    def fetch_balance(self, params: {}) -> Balances:
+    def fetch_balance(self, params={}) -> Balances:
         """
         query for balance and get the amount of funds available for trading or funds locked in orders
         :see: https://allinexchange.github.io/spot-docs/v1/en/#account-balance
@@ -471,7 +471,7 @@ class allin(Exchange, ImplicitAPI):
         response = self.privateGetOpenV1Balance(params)
         return self.parse_balance(response)
 
-    def fetch_ohlcv(self, symbol: str, timeframe: str, since: Int, limit: Int, params: {}) -> List[list]:
+    def fetch_ohlcv(self, symbol: str, timeframe: str = '1m', since: Int = None, limit: Int = None, params={}) -> List[list]:
         """
         fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
         :see: https://allinexchange.github.io/spot-docs/v1/en/#market-k-line-2
@@ -488,6 +488,7 @@ class allin(Exchange, ImplicitAPI):
         #          {'time': 1720072740, 'open': '68000.00', 'close': '68000.00', 'high': '68000.00', 'low': '68000.00', 'volume': '0', 'amount': '0'},
         # ],
         #     'time': 1720081645}
+        self.load_markets()
         market = self.market(symbol)
         marketId = self.market_id(symbol)
         duration = self.timeframes[timeframe]
@@ -499,7 +500,7 @@ class allin(Exchange, ImplicitAPI):
         klines = self.safe_list(response, 'data', [])
         return self.parse_ohlcvs(klines, market, timeframe, since, limit)
 
-    def fetch_orders(self, symbol: Str, since: Int, limit: Int, params: {}) -> List[Order]:
+    def fetch_orders(self, symbol: Str, since: Int = None, limit: Int = None, params={}) -> List[Order]:
         """
         fetches information on multiple orders made by the user
         :see: https://allinexchange.github.io/spot-docs/v1/en/#order-history
@@ -552,7 +553,7 @@ class allin(Exchange, ImplicitAPI):
         orders = self.safe_list(self.safe_dict(response, 'data', {}), 'orders')
         return self.parse_orders(orders, market, since, limit, params)
 
-    def fetch_open_orders(self, symbol: Str, since: Int, limit: Int, params: {}) -> List[Order]:
+    def fetch_open_orders(self, symbol: Str, since: Int = None, limit: Int = None, params={}) -> List[Order]:
         """
         fetch all unfilled currently open orders
         :see: https://allinexchange.github.io/spot-docs/v1/en/#active-orders
@@ -587,7 +588,7 @@ class allin(Exchange, ImplicitAPI):
         orders = self.safe_list(response, 'data')
         return self.parse_orders(orders, market)
 
-    def fetch_order(self, id: str, symbol: Str, params: {}) -> Order:
+    def fetch_order(self, id: str, symbol: Str, params={}) -> Order:
         """
         fetches information on an order made by the user
         :see: https://allinexchange.github.io/spot-docs/v1/en/#get-order-details
@@ -633,7 +634,7 @@ class allin(Exchange, ImplicitAPI):
         order = self.safe_dict(response, 'data')
         return self.parse_order(order, market)
 
-    def fetch_trades(self, symbol: str, since: Int, limit: Int, params: {}) -> List[Trade]:
+    def fetch_trades(self, symbol: str, since: Int = None, limit: Int = None, params={}) -> List[Trade]:
         """
         Each filled orders
         :see: https://allinexchange.github.io/spot-docs/v1/en/#each-filled-orders-2
@@ -665,7 +666,7 @@ class allin(Exchange, ImplicitAPI):
         trades = self.safe_list(response, 'data')
         return self.parse_trades(trades, market, since, limit)
 
-    def create_order(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}) -> Order:
+    def create_order(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params={}) -> Order:
         """
         create a trade order
         :see: https://allinexchange.github.io/spot-docs/v1/en/#place-new-order
@@ -698,8 +699,7 @@ class allin(Exchange, ImplicitAPI):
         )
         response = self.privatePostOpenV1OrdersPlace(request)
         orderData = self.safe_dict(response, 'data')
-        timestamp = self.safe_integer(response, 'time')
-        self.log(response)
+        timestamp = self.safe_timestamp(response, 'time')
         return self.parse_order({
             'order_id': self.safe_string(orderData, 'order_id'),
             'trade_no': self.safe_string(orderData, 'trade_no'),
@@ -715,7 +715,7 @@ class allin(Exchange, ImplicitAPI):
             'create_at': timestamp,
         }, market)
 
-    def cancel_order(self, id: str, symbol: Str, params: {}) -> {}:
+    def cancel_order(self, id: str, symbol: Str, params={}) -> {}:
         """
         cancels an open order
         :see: https://allinexchange.github.io/spot-docs/v1/en/#cancel-an-order-in-order
@@ -815,7 +815,7 @@ class allin(Exchange, ImplicitAPI):
         last = self.safe_string(ticker, 'price')
         baseVolume = self.safe_string(ticker, 'volume')  # 数量
         quoteVolume = self.safe_string(ticker, 'amount')  # 金额
-        timestamp = self.safe_integer(ticker, 'timestamp')
+        timestamp = self.safe_timestamp(ticker, 'timestamp')
         return self.safe_ticker({
             'symbol': symbol,
             'info': ticker,
@@ -847,7 +847,7 @@ class allin(Exchange, ImplicitAPI):
         #         {'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT'}],
         #     'time': 1720067861}
         originBalances = self.safe_list(response, 'data', [])
-        timestamp = self.safe_integer(response, 'timestamp')
+        timestamp = self.safe_timestamp(response, 'timestamp')
         balances = {
             'info': originBalances,
             'timestamp': timestamp,
@@ -884,7 +884,7 @@ class allin(Exchange, ImplicitAPI):
         #     'amount': '0'},
         # ]
         return [
-            self.safe_integer(ohlcv, 'time'),
+            self.safe_timestamp(ohlcv, 'time'),
             self.safe_integer(ohlcv, 'open'),
             self.safe_integer(ohlcv, 'high'),
             self.safe_integer(ohlcv, 'low'),
@@ -905,7 +905,7 @@ class allin(Exchange, ImplicitAPI):
         #             'fee': '0.0112',
         #             'time': 1574922846833
         #             }
-        timestamp = self.safe_integer(trade, 'time')
+        timestamp = self.safe_timestamp(trade, 'time')
         symbol = self.safe_string(market, 'symbol')
         sideNumber = self.safe_integer(trade, 'side')
         side = 'buy' if (sideNumber == 1) else 'sell'
@@ -1010,7 +1010,7 @@ class allin(Exchange, ImplicitAPI):
         #             'time': 1574922846833
         #             }]
         #     }
-        timestamp = self.safe_integer(order, 'create_at')
+        timestamp = self.safe_timestamp(order, 'create_at')
         symbol = self.safe_string(market, 'symbol')
         type_ = self.parse_order_type(self.safe_string(order, 'order_type'))
         side = self.parse_order_side(self.safe_integer(order, 'side'))

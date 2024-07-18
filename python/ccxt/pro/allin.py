@@ -67,7 +67,7 @@ class allin(ccxt.async_support.allin):
             },
         })
 
-    async def watch_order_book(self, symbol: str, limit: Int, params={}) -> OrderBook:
+    async def watch_order_book(self, symbol: str, limit: Int = 50, params={}) -> OrderBook:
         """
         watches information on open orders with bid(buy) and ask(sell) prices, volumes and other data
         :param str symbol: unified symbol of the market to fetch the order book for
@@ -113,7 +113,7 @@ class allin(ccxt.async_support.allin):
         orderbook = await self.watch(url, messageHash, request, messageHash, True)
         return orderbook.limit()
 
-    async def watch_balance(self, params: {}) -> Balances:
+    async def watch_balance(self, params={}) -> Balances:
         """
         watch balance and get the amount of funds available for trading or funds locked in orders
         :param dict [params]: extra parameters specific to the exchange API endpoint
@@ -236,7 +236,7 @@ class allin(ccxt.async_support.allin):
         abData = self.safe_dict(result, 'data')
         marketId = self.safe_string(abData, 'symbol')
         market = self.safe_market(marketId, None, None)
-        timestamp = self.safe_integer(abData, 'timestamp')
+        timestamp = self.safe_timestamp(abData, 'timestamp')
         messageHash = self.safe_string(abData, 'topic')
         symbol = market['symbol']
         if not (symbol in self.orderbooks):
@@ -308,9 +308,8 @@ class allin(ccxt.async_support.allin):
             self.ohlcvs[symbol][timeframe] = stored
         for i in range(0, len(ticks)):
             tick = ticks[i]
-            self.log(tick)
             parsed = [
-                self.safe_integer(tick, 'timestamp'),
+                self.safe_timestamp(tick, 'timestamp'),
                 self.safe_float(tick, 'open'),
                 self.safe_float(tick, 'high'),
                 self.safe_float(tick, 'low'),
@@ -350,7 +349,7 @@ class allin(ccxt.async_support.allin):
         #     'error': null,
         # }
         result = self.safe_dict(message, 'result')
-        timestamp = self.safe_integer(result, 'timestamp')
+        timestamp = self.safe_timestamp(result, 'timestamp')
         allinOrderStatus = self.safe_integer(result, 'status')
         allinSymbol = self.safe_string(result, 'symbol')
         market = self.safe_market(allinSymbol)
@@ -389,7 +388,7 @@ class allin(ccxt.async_support.allin):
             'info': result,
         }
         safeOrder = self.safe_order(order, market)
-        client.resolve(safeOrder, messageHash)
+        client.resolve([safeOrder], messageHash)
 
     def handle_balance(self, client: Client, message):
         # {
@@ -409,10 +408,10 @@ class allin(ccxt.async_support.allin):
         token = self.safe_string(result, 'symbol')
         if self.balance is None:
             self.balance = {}
-        if self.balance['info'] is None:
+        if not self.safe_dict(self.balance, 'info'):
             self.balance['info'] = {}
         self.balance['info'][token] = result
-        timestamp = self.microseconds()
+        timestamp = self.milliseconds()
         self.balance['timestamp'] = timestamp
         self.balance['datetime'] = self.iso8601(timestamp)
         self.balance[token] = {
@@ -431,7 +430,7 @@ class allin(ccxt.async_support.allin):
         }
 
     def handle_pong(self, client, message):
-        client.lastPong = self.microseconds()
+        client.lastPong = self.milliseconds()
         return message
 
     def handle_authenticate(self, client: Client, message):
@@ -473,7 +472,6 @@ class allin(ccxt.async_support.allin):
 
     def handle_message(self, client: Client, message):
         error = self.safe_value(message, 'error')
-        self.log('message: ', message)
         if error:
             self.handle_error_message(client, message)
         methodsDict: dict = {

@@ -66,7 +66,7 @@ class allin extends \ccxt\async\allin {
         ));
     }
 
-    public function watch_order_book(string $symbol, ?int $limit, $params = array ()): PromiseInterface {
+    public function watch_order_book(string $symbol, ?int $limit = 50, $params = array ()): PromiseInterface {
         return Async\async(function () use ($symbol, $limit, $params) {
             /**
              * watches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
@@ -116,7 +116,7 @@ class allin extends \ccxt\async\allin {
         }) ();
     }
 
-    public function watch_balance(?array () $params): PromiseInterface {
+    public function watch_balance($params = array ()): PromiseInterface {
         return Async\async(function () use ($params) {
             /**
              * watch balance and get the amount of funds available for trading or funds locked in orders
@@ -253,7 +253,7 @@ class allin extends \ccxt\async\allin {
         $abData = $this->safe_dict($result, 'data');
         $marketId = $this->safe_string($abData, 'symbol');
         $market = $this->safe_market($marketId, null, null);
-        $timestamp = $this->safe_integer($abData, 'timestamp');
+        $timestamp = $this->safe_timestamp($abData, 'timestamp');
         $messageHash = $this->safe_string($abData, 'topic');
         $symbol = $market['symbol'];
         if (!(is_array($this->orderbooks) && array_key_exists($symbol, $this->orderbooks))) {
@@ -333,9 +333,8 @@ class allin extends \ccxt\async\allin {
         }
         for ($i = 0; $i < count($ticks); $i++) {
             $tick = $ticks[$i];
-            $this->log($tick);
             $parsed = array(
-                $this->safe_integer($tick, 'timestamp'),
+                $this->safe_timestamp($tick, 'timestamp'),
                 $this->safe_float($tick, 'open'),
                 $this->safe_float($tick, 'high'),
                 $this->safe_float($tick, 'low'),
@@ -377,7 +376,7 @@ class allin extends \ccxt\async\allin {
         //     'error' => null,
         // );
         $result = $this->safe_dict($message, 'result');
-        $timestamp = $this->safe_integer($result, 'timestamp');
+        $timestamp = $this->safe_timestamp($result, 'timestamp');
         $allinOrderStatus = $this->safe_integer($result, 'status');
         $allinSymbol = $this->safe_string($result, 'symbol');
         $market = $this->safe_market($allinSymbol);
@@ -417,7 +416,7 @@ class allin extends \ccxt\async\allin {
             'info' => $result,
         );
         $safeOrder = $this->safe_order($order, $market);
-        $client->resolve ($safeOrder, $messageHash);
+        $client->resolve (array( $safeOrder ), $messageHash);
     }
 
     public function handle_balance(Client $client, $message) {
@@ -439,11 +438,11 @@ class allin extends \ccxt\async\allin {
         if ($this->balance === null) {
             $this->balance = array();
         }
-        if ($this->balance['info'] === null) {
+        if (!$this->safe_dict($this->balance, 'info')) {
             $this->balance['info'] = array();
         }
         $this->balance['info'][$token] = $result;
-        $timestamp = $this->microseconds();
+        $timestamp = $this->milliseconds();
         $this->balance['timestamp'] = $timestamp;
         $this->balance['datetime'] = $this->iso8601($timestamp);
         $this->balance[$token] = array(
@@ -464,7 +463,7 @@ class allin extends \ccxt\async\allin {
     }
 
     public function handle_pong($client, $message) {
-        $client->lastPong = $this->microseconds();
+        $client->lastPong = $this->milliseconds();
         return $message;
     }
 
@@ -512,7 +511,6 @@ class allin extends \ccxt\async\allin {
 
     public function handle_message(Client $client, $message) {
         $error = $this->safe_value($message, 'error');
-        $this->log('message => ', $message);
         if ($error) {
             $this->handle_error_message($client, $message);
         }
