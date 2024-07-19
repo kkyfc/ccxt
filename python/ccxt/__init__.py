@@ -81,6 +81,7 @@ from ccxt.base.errors import CancelPending                            # noqa: F4
 from ccxt.base.errors import error_hierarchy                          # noqa: F401
 
 from ccxt.ace import ace                                              # noqa: F401
+from ccxt.allin import allin                                          # noqa: F401
 from ccxt.alpaca import alpaca                                        # noqa: F401
 from ccxt.ascendex import ascendex                                    # noqa: F401
 from ccxt.bequant import bequant                                      # noqa: F401
@@ -191,6 +192,7 @@ from ccxt.zonda import zonda                                          # noqa: F4
 
 exchanges = [
     'ace',
+    'allin',
     'alpaca',
     'ascendex',
     'bequant',
