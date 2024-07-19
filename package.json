@@ -168,7 +168,7 @@
     "eslint-config-airbnb-base": "15.0.0",
     "eslint-plugin-import": "2.25.4",
     "eslint-plugin-jsdoc": "^46.9.0",
-    "esmify": "^2.1.1",
+    "esmify": "^0.1.2",
     "https-proxy-agent": "^5.0.1",
     "jsdoc-to-markdown": "^8.0.0",
     "ololog": "1.1.155",
@@ -279,6 +279,7 @@
   },
   "ethereum": "0x26a3CB49578F07000575405a57888681249c35Fd",
   "dependencies": {
+    "pm": "^2.2.6",
     "ws": "^8.8.1"
   }
 }

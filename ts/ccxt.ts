@@ -47,6 +47,7 @@ const version = '4.3.58';
 //-----------------------------------------------------------------------------
 
 import ace from  './src/ace.js'
+import allin from  './src/allin.js'
 import alpaca from  './src/alpaca.js'
 import ascendex from  './src/ascendex.js'
 import bequant from  './src/bequant.js'
@@ -157,6 +158,7 @@ import zonda from  './src/zonda.js'
 
 
 // pro exchanges
+import allinPro from  './src/pro/allin.js'
 import alpacaPro from  './src/pro/alpaca.js'
 import ascendexPro from  './src/pro/ascendex.js'
 import bequantPro from  './src/pro/bequant.js'
@@ -228,6 +230,7 @@ import xtPro from  './src/pro/xt.js'
 
 const exchanges = {
     'ace':                    ace,
+    'allin':                  allin,
     'alpaca':                 alpaca,
     'ascendex':               ascendex,
     'bequant':                bequant,
@@ -338,6 +341,7 @@ const exchanges = {
 }
 
 const pro = {
+    'allin':                  allinPro,
     'alpaca':                 alpacaPro,
     'ascendex':               ascendexPro,
     'bequant':                bequantPro,
@@ -544,6 +548,7 @@ export {
     TransferEntries,
     LeverageTiers,
     ace,
+    allin,
     alpaca,
     ascendex,
     bequant,

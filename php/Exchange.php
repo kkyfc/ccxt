@@ -388,6 +388,7 @@ class Exchange {
 
     public static $exchanges = array(
         'ace',
+        'allin',
         'alpaca',
         'ascendex',
         'bequant',
