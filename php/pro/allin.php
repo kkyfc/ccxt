@@ -253,7 +253,7 @@ class allin extends \ccxt\async\allin {
         $abData = $this->safe_dict($result, 'data');
         $marketId = $this->safe_string($abData, 'symbol');
         $market = $this->safe_market($marketId, null, null);
-        $timestamp = $this->safe_integer($abData, 'timestamp');
+        $timestamp = $this->safe_timestamp($abData, 'timestamp');
         $messageHash = $this->safe_string($abData, 'topic');
         $symbol = $market['symbol'];
         if (!(is_array($this->orderbooks) && array_key_exists($symbol, $this->orderbooks))) {

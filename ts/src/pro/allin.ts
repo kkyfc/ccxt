@@ -248,7 +248,7 @@ export default class allin extends allinRest {
         const abData = this.safeDict (result, 'data');
         const marketId = this.safeString (abData, 'symbol');
         const market = this.safeMarket (marketId, undefined, undefined);
-        const timestamp = this.safeInteger (abData, 'timestamp');
+        const timestamp = this.safeTimestamp (abData, 'timestamp');
         const messageHash = this.safeString (abData, 'topic');
         const symbol = market['symbol'];
         if (!(symbol in this.orderbooks)) {
