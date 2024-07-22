@@ -26,8 +26,8 @@ class allin extends allin$1 {
                 'watchOrders': true,
                 'watchOrdersForSymbols': false,
                 'watchPositions': false,
-                'watchTicker': true,
-                'watchTickers': true,
+                'watchTicker': false,
+                'watchTickers': false,
                 'watchTrades': true,
                 'watchTradesForSymbols': false,
             },
@@ -142,7 +142,7 @@ class allin extends allin$1 {
         await this.loadMarkets();
         const market = this.market(symbol);
         const symbolId = market['id'];
-        const messageHash = 'update.quote';
+        const messageHash = 'update.quote:' + symbolId;
         const type_ = 'spot';
         const url = this.urls['api']['ws'][type_];
         const request = {
@@ -315,14 +315,23 @@ class allin extends allin$1 {
             this.orderbooks[symbol]['symbol'] = symbol;
         }
         const orderbook = this.orderbooks[symbol];
-        const asks = this.safeList(abData, 'asks', []);
-        const bids = this.safeList(abData, 'bids', []);
-        this.handleDeltas(orderbook['asks'], asks);
-        this.handleDeltas(orderbook['bids'], bids);
-        orderbook['timestamp'] = timestamp;
-        orderbook['datetime'] = this.iso8601(timestamp);
+        // const asks = this.safeList (abData, 'asks', []);
+        // const bids = this.safeList (abData, 'bids', []);
+        // this.handleDeltas (orderbook['asks'], asks);
+        // this.handleDeltas (orderbook['bids'], bids);
+        // orderbook['timestamp'] = timestamp;
+        // orderbook['datetime'] = this.iso8601 (timestamp);
+        // this.orderbooks[symbol] = orderbook;
+        const snapshot = this.parseOrderBook(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+        orderbook.reset(snapshot);
         this.orderbooks[symbol] = orderbook;
         client.resolve(orderbook, messageHash);
+    }
+    handleFulls(datas) {
+        const bookside = [];
+        for (let i = 0; i < datas.length; i++) {
+            bookside.push(this.safeFloat(datas, 'price'), this.safeFloat(datas, 'quantity'));
+        }
     }
     handleDelta(bookside, delta) {
         const price = this.safeFloat(delta, 'price');
@@ -356,14 +365,13 @@ class allin extends allin$1 {
         //         'market': 'BTC-USDT',
         //     },
         // };
-        this.log('ticker: ', message);
         const result = this.safeDict(message, 'result');
         const tickerData = this.safeDict(result, 'data');
         const symbolId = this.safeString(tickerData, 'symbol');
         const market = this.safeMarket(symbolId, undefined, undefined);
         tickerData['timestamp'] = this.safeTimestamp(tickerData, 'timestamp');
         const symbol = market['symbol'];
-        const messageHash = 'update.quote';
+        const messageHash = 'update.quote:' + symbolId;
         const ticker = this.parseTicker(tickerData, market);
         this.tickers[symbol] = ticker;
         client.resolve(ticker, messageHash);
@@ -390,7 +398,6 @@ class allin extends allin$1 {
         //         'market': 'BTC-USDT',
         //     },
         // };
-        this.log('ticker: ', message);
         const result = this.safeDict(message, 'result');
         const tickerData = this.safeDict(result, 'data');
         const symbolId = this.safeString(tickerData, 'symbol');

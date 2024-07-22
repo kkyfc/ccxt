@@ -30,7 +30,7 @@ function example() {
         $symbol = 'BTC/USDT';
         while (true) {
             $orderbook = Async\await($allin->watch_order_book($symbol, 20, array()));
-            var_dump($orderbook['symbol'], $orderbook['asks'][0], $orderbook['bids'][0]);
+            var_dump($orderbook['symbol'], $orderbook['timestamp'], $orderbook['asks'][0], $orderbook['bids'][0]);
         }
     }) ();
 }

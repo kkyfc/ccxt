@@ -27,7 +27,7 @@ async def example():
     symbol = 'BTC/USDT'
     while True:
         orderbook = await allin.watch_order_book(symbol, 20, {})
-        print(orderbook['symbol'], orderbook['asks'][0], orderbook['bids'][0])
+        print(orderbook['symbol'], orderbook['timestamp'], orderbook['asks'][0], orderbook['bids'][0])
 
     await allin.close()
 

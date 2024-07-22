@@ -12,7 +12,7 @@ async function example() {
     const symbol = 'BTC/USDT';
     while (true) {
         const orderbook = await allin.watchOrderBook(symbol, 20, {});
-        console.log(orderbook['symbol'], orderbook['asks'][0], orderbook['bids'][0]);
+        console.log(orderbook['symbol'], orderbook['timestamp'], orderbook['asks'][0], orderbook['bids'][0]);
     }
 }
 await example();

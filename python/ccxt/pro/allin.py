@@ -34,8 +34,8 @@ class allin(ccxt.async_support.allin):
                 'watchOrders': True,
                 'watchOrdersForSymbols': False,
                 'watchPositions': False,
-                'watchTicker': True,
-                'watchTickers': True,
+                'watchTicker': False,
+                'watchTickers': False,
                 'watchTrades': True,
                 'watchTradesForSymbols': False,
             },
@@ -145,7 +145,7 @@ class allin(ccxt.async_support.allin):
         await self.load_markets()
         market = self.market(symbol)
         symbolId = market['id']
-        messageHash = 'update.quote'
+        messageHash = 'update.quote:' + symbolId
         type_ = 'spot'
         url = self.urls['api']['ws'][type_]
         request = {
@@ -307,14 +307,22 @@ class allin(ccxt.async_support.allin):
             self.orderbooks[symbol] = self.order_book()
             self.orderbooks[symbol]['symbol'] = symbol
         orderbook = self.orderbooks[symbol]
-        asks = self.safe_list(abData, 'asks', [])
-        bids = self.safe_list(abData, 'bids', [])
-        self.handle_deltas(orderbook['asks'], asks)
-        self.handle_deltas(orderbook['bids'], bids)
-        orderbook['timestamp'] = timestamp
-        orderbook['datetime'] = self.iso8601(timestamp)
+        # asks = self.safe_list(abData, 'asks', [])
+        # bids = self.safe_list(abData, 'bids', [])
+        # self.handle_deltas(orderbook['asks'], asks)
+        # self.handle_deltas(orderbook['bids'], bids)
+        # orderbook['timestamp'] = timestamp
+        # orderbook['datetime'] = self.iso8601(timestamp)
+        # self.orderbooks[symbol] = orderbook
+        snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+        orderbook.reset(snapshot)
         self.orderbooks[symbol] = orderbook
         client.resolve(orderbook, messageHash)
+
+    def handle_fulls(self, datas):
+        bookside = []
+        for i in range(0, len(datas)):
+            bookside.append(self.safe_float(datas, 'price'), self.safe_float(datas, 'quantity'))
 
     def handle_delta(self, bookside, delta):
         price = self.safe_float(delta, 'price')
@@ -347,14 +355,13 @@ class allin(ccxt.async_support.allin):
         #         'market': 'BTC-USDT',
         #     },
         # }
-        self.log('ticker: ', message)
         result = self.safe_dict(message, 'result')
         tickerData = self.safe_dict(result, 'data')
         symbolId = self.safe_string(tickerData, 'symbol')
         market = self.safe_market(symbolId, None, None)
         tickerData['timestamp'] = self.safe_timestamp(tickerData, 'timestamp')
         symbol = market['symbol']
-        messageHash = 'update.quote'
+        messageHash = 'update.quote:' + symbolId
         ticker = self.parse_ticker(tickerData, market)
         self.tickers[symbol] = ticker
         client.resolve(ticker, messageHash)
@@ -381,7 +388,6 @@ class allin(ccxt.async_support.allin):
         #         'market': 'BTC-USDT',
         #     },
         # }
-        self.log('ticker: ', message)
         result = self.safe_dict(message, 'result')
         tickerData = self.safe_dict(result, 'data')
         symbolId = self.safe_string(tickerData, 'symbol')

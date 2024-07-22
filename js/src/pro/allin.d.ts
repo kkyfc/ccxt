@@ -11,6 +11,7 @@ export default class allin extends allinRest {
     watchOHLCV(symbol: string, timeframe?: string, since?: Int, limit?: Int, params?: {}): Promise<OHLCV[]>;
     authenticate(url: any, params?: {}): Promise<any>;
     handleOrderBook(client: Client, message: any): void;
+    handleFulls(datas: any): void;
     handleDelta(bookside: any, delta: any): void;
     handleDeltas(bookside: any, deltas: any): void;
     handleTicker(client: Client, message: any): void;

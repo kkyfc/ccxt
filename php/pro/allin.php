@@ -32,8 +32,8 @@ class allin extends \ccxt\async\allin {
                 'watchOrders' => true,
                 'watchOrdersForSymbols' => false,
                 'watchPositions' => false,
-                'watchTicker' => true,
-                'watchTickers' => true,
+                'watchTicker' => false,
+                'watchTickers' => false,
                 'watchTrades' => true,
                 'watchTradesForSymbols' => false,
             ),
@@ -149,7 +149,7 @@ class allin extends \ccxt\async\allin {
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             $symbolId = $market['id'];
-            $messageHash = 'update.quote';
+            $messageHash = 'update.quote:' . $symbolId;
             $type_ = 'spot';
             $url = $this->urls['api']['ws'][$type_];
             $request = array(
@@ -331,14 +331,24 @@ class allin extends \ccxt\async\allin {
             $this->orderbooks[$symbol]['symbol'] = $symbol;
         }
         $orderbook = $this->orderbooks[$symbol];
-        $asks = $this->safe_list($abData, 'asks', array());
-        $bids = $this->safe_list($abData, 'bids', array());
-        $this->handle_deltas($orderbook['asks'], $asks);
-        $this->handle_deltas($orderbook['bids'], $bids);
-        $orderbook['timestamp'] = $timestamp;
-        $orderbook['datetime'] = $this->iso8601($timestamp);
+        // $asks = $this->safe_list($abData, 'asks', array());
+        // $bids = $this->safe_list($abData, 'bids', array());
+        // $this->handle_deltas($orderbook['asks'], $asks);
+        // $this->handle_deltas($orderbook['bids'], $bids);
+        // $orderbook['timestamp'] = $timestamp;
+        // $orderbook['datetime'] = $this->iso8601($timestamp);
+        // $this->orderbooks[$symbol] = $orderbook;
+        $snapshot = $this->parse_order_book($abData, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
+        $orderbook->reset ($snapshot);
         $this->orderbooks[$symbol] = $orderbook;
         $client->resolve ($orderbook, $messageHash);
+    }
+
+    public function handle_fulls($datas) {
+        $bookside = array();
+        for ($i = 0; $i < count($datas); $i++) {
+            $bookside[] = $this->safe_float($datas, 'price'), $this->safe_float($datas, 'quantity');
+        }
     }
 
     public function handle_delta($bookside, $delta) {
@@ -375,14 +385,13 @@ class allin extends \ccxt\async\allin {
         //         'market' => 'BTC-USDT',
         //     ),
         // );
-        $this->log('ticker => ', $message);
         $result = $this->safe_dict($message, 'result');
         $tickerData = $this->safe_dict($result, 'data');
         $symbolId = $this->safe_string($tickerData, 'symbol');
         $market = $this->safe_market($symbolId, null, null);
         $tickerData['timestamp'] = $this->safe_timestamp($tickerData, 'timestamp');
         $symbol = $market['symbol'];
-        $messageHash = 'update.quote';
+        $messageHash = 'update.quote:' . $symbolId;
         $ticker = $this->parse_ticker($tickerData, $market);
         $this->tickers[$symbol] = $ticker;
         $client->resolve ($ticker, $messageHash);
@@ -410,7 +419,6 @@ class allin extends \ccxt\async\allin {
         //         'market' => 'BTC-USDT',
         //     ),
         // );
-        $this->log('ticker => ', $message);
         $result = $this->safe_dict($message, 'result');
         $tickerData = $this->safe_dict($result, 'data');
         $symbolId = $this->safe_string($tickerData, 'symbol');
