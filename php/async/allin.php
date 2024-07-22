@@ -441,17 +441,18 @@ class allin extends Exchange {
              * @see https://allinexchange.github.io/spot-docs/v1/en/#depth
              * @see https://allinexchange.github.io/spot-docs/v1/en/#$market-depth
              */
-            // $orderbook = array(
-            //     'code' => 0,
+            // $orderbook = array( 'code' => 0,
             //     'msg' => 'ok',
             //     'data' => array( 'bids' => array(
-            //         array( 'price' => '67890.99', 'quantity' => '0.002000' ),
-            //         array( 'price' => '67890.44', 'quantity' => '0.001000' ),
-            //         array( 'price' => '62000.00', 'quantity' => '1.999000' ) ),
-            //     'asks' => array(
-            //         array( 'price' => '68000.00', 'quantity' => '0.357100' ),
-            //         array( 'price' => '68123.44', 'quantity' => '0.230000' ),
-            //     ) ));
+            //         array( 'price' => '63000.21', 'quantity' => '0.008694' ),
+            //         array( 'price' => '62500.00', 'quantity' => '0.034351' ),
+            //         array( 'price' => '62000.00', 'quantity' => '1.999000' ),
+            //         array( 'price' => '40000.00', 'quantity' => '0.022334' ) ),
+            //     'asks' => array( array( 'price' => '72875.36', 'quantity' => '0.036895' ),
+            //         array( 'price' => '72951.29', 'quantity' => '0.040065' ),
+            //         array( 'price' => '73104.20', 'quantity' => '0.040996' ),
+            //         array( 'price' => '78000.00', 'quantity' => '0.003000' ) ) ),
+            //     'time' => 1721550050 );
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' fetchOrderBook() requires a $symbol argument');
             }
@@ -462,7 +463,7 @@ class allin extends Exchange {
             );
             $response = Async\await($this->publicGetOpenV1DepthMarket ($this->extend($request, $params)));
             $result = $this->safe_dict($response, 'data', array());
-            $timestamp = $this->milliseconds();
+            $timestamp = $this->safe_timestamp($response, 'time');
             return $this->parse_order_book($result, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
         }) ();
     }
@@ -867,7 +868,7 @@ class allin extends Exchange {
         $last = $this->safe_string($ticker, 'price');
         $baseVolume = $this->safe_string($ticker, 'volume'); // 数量
         $quoteVolume = $this->safe_string($ticker, 'amount'); // 金额
-        $timestamp = $this->safe_timestamp($ticker, 'timestamp');
+        $timestamp = $this->safe_integer($ticker, 'timestamp');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'info' => $ticker,
@@ -1051,7 +1052,7 @@ class allin extends Exchange {
         //     'side' => -1,
         //     'order_type' => 1,
         //     'status' => 6,
-        //     'create_at' => 1574744151836,
+        //     'create_at' => 1721550307.615717,
         // );
         // // $order detail //
         //     'data' => {
@@ -1067,7 +1068,7 @@ class allin extends Exchange {
         //         'side' => -1,
         //         'order_type' => 1,
         //         'status' => 4,
-        //         'create_at' => 1574922846832,
+        //         'create_at' => 1721550307.615717,
         //         'trades' => [array(
         //             'amount' => '7',
         //             'price' => '70000',

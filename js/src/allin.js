@@ -435,17 +435,18 @@ export default class allin extends Exchange {
          * @see https://allinexchange.github.io/spot-docs/v1/en/#depth
          * @see https://allinexchange.github.io/spot-docs/v1/en/#market-depth
          */
-        // const orderbook = {
-        //     'code': 0,
+        // const orderbook = { 'code': 0,
         //     'msg': 'ok',
         //     'data': { 'bids': [
-        //         { 'price': '67890.99', 'quantity': '0.002000' },
-        //         { 'price': '67890.44', 'quantity': '0.001000' },
-        //         { 'price': '62000.00', 'quantity': '1.999000' } ],
-        //     'asks': [
-        //         { 'price': '68000.00', 'quantity': '0.357100' },
-        //         { 'price': '68123.44', 'quantity': '0.230000' },
-        //     ] }};
+        //         { 'price': '63000.21', 'quantity': '0.008694' },
+        //         { 'price': '62500.00', 'quantity': '0.034351' },
+        //         { 'price': '62000.00', 'quantity': '1.999000' },
+        //         { 'price': '40000.00', 'quantity': '0.022334' } ],
+        //     'asks': [ { 'price': '72875.36', 'quantity': '0.036895' },
+        //         { 'price': '72951.29', 'quantity': '0.040065' },
+        //         { 'price': '73104.20', 'quantity': '0.040996' },
+        //         { 'price': '78000.00', 'quantity': '0.003000' } ] },
+        //     'time': 1721550050 };
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' fetchOrderBook() requires a symbol argument');
         }
@@ -456,7 +457,7 @@ export default class allin extends Exchange {
         };
         const response = await this.publicGetOpenV1DepthMarket(this.extend(request, params));
         const result = this.safeDict(response, 'data', {});
-        const timestamp = this.milliseconds();
+        const timestamp = this.safeTimestamp(response, 'time');
         return this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
     async fetchBalance(params = {}) {
@@ -844,7 +845,7 @@ export default class allin extends Exchange {
         const last = this.safeString(ticker, 'price');
         const baseVolume = this.safeString(ticker, 'volume'); // 数量
         const quoteVolume = this.safeString(ticker, 'amount'); // 金额
-        const timestamp = this.safeTimestamp(ticker, 'timestamp');
+        const timestamp = this.safeInteger(ticker, 'timestamp');
         return this.safeTicker({
             'symbol': symbol,
             'info': ticker,
@@ -1025,7 +1026,7 @@ export default class allin extends Exchange {
         //     'side': -1,
         //     'order_type': 1,
         //     'status': 6,
-        //     'create_at': 1574744151836,
+        //     'create_at': 1721550307.615717,
         // };
         // // order detail //
         //     'data': {
@@ -1041,7 +1042,7 @@ export default class allin extends Exchange {
         //         'side': -1,
         //         'order_type': 1,
         //         'status': 4,
-        //         'create_at': 1574922846832,
+        //         'create_at': 1721550307.615717,
         //         'trades': [{
         //             'amount': '7',
         //             'price': '70000',

@@ -6,7 +6,7 @@
 import ccxt.async_support
 from ccxt.async_support.base.ws.cache import ArrayCacheByTimestamp
 import hashlib
-from ccxt.base.types import Balances, Int, Order, OrderBook, Str
+from ccxt.base.types import Balances, Int, Order, OrderBook, Str, Ticker, Tickers
 from ccxt.async_support.base.ws.client import Client
 from typing import List
 from ccxt.base.errors import ExchangeError
@@ -34,8 +34,8 @@ class allin(ccxt.async_support.allin):
                 'watchOrders': True,
                 'watchOrdersForSymbols': False,
                 'watchPositions': False,
-                'watchTicker': False,
-                'watchTickers': False,
+                'watchTicker': True,
+                'watchTickers': True,
                 'watchTrades': True,
                 'watchTradesForSymbols': False,
             },
@@ -112,6 +112,70 @@ class allin(ccxt.async_support.allin):
         request['id'] = reqId
         orderbook = await self.watch(url, messageHash, request, messageHash, True)
         return orderbook.limit()
+
+    async def watch_ticker(self, symbol: str, params={}) -> Ticker:
+        """
+        watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+        :see: https://allinexchange.github.io/spot-docs/v1/en/#websocket-guide
+        :param str symbol: unified symbol of the market to fetch the ticker for
+        :param dict [params]: extra parameters specific to the exchange API endpoint
+        :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
+        """
+        # response = {
+        #     'id': 1,
+        #     'method': 'update.quote',
+        #     'error': null,  # 错误响应
+        #     'result': {
+        #         'data': {
+        #             'symbol': 'BTC-USDT',
+        #             'timestamp': 1673417148,
+        #             'topic': 'quotes',
+        #             'price': '100.21',  # 价格
+        #             'volume': '0',
+        #             'amount': '0',
+        #             'high': '100.21',
+        #             'low': '100.21',
+        #             'change': '0',
+        #             'tpp': 1,
+        #             'l_price': '100.21',
+        #         },  # 返回数据
+        #         'market': 'BTC-USDT',
+        #     },  # 结果集
+        # }
+        await self.load_markets()
+        market = self.market(symbol)
+        symbolId = market['id']
+        messageHash = 'update.quote'
+        type_ = 'spot'
+        url = self.urls['api']['ws'][type_]
+        request = {
+            'method': 'subscribe.quote',
+            'params': {
+                'market': symbolId,
+            },
+            'id': self.request_id(),
+        }
+        ticker = await self.watch(url, messageHash, request, messageHash, True)
+        return ticker
+
+    async def watch_tickers(self, symbols=None, params={}) -> Tickers:
+        """
+        watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for all markets of a specific list
+        :see: https://allinexchange.github.io/spot-docs/v1/en/#websocket-guide
+        :param str[] symbols: unified symbol of the market to fetch the ticker for
+        :param dict [params]: extra parameters specific to the exchange API endpoint
+        :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
+        """
+        messageHash = 'update.quotes'
+        type_ = 'spot'
+        url = self.urls['api']['ws'][type_]
+        request = {
+            'method': 'subscribe.quotes',
+            'params': {},
+            'id': self.request_id(),
+        }
+        tickers = await self.watch(url, messageHash, request, messageHash, True)
+        return self.filter_by_array(tickers, 'symbol', symbols)
 
     async def watch_balance(self, params={}) -> Balances:
         """
@@ -227,7 +291,7 @@ class allin(ccxt.async_support.allin):
         #             {'price': '60000.0', 'quantity': '1.100000'},
         #             {'price': '8850.2', 'quantity': '0.200000'}],
         #         'symbol': 'BTC-USDT',
-        #         'timestamp': 1720856594882,
+        #         'timestamp': 1721550307627,
         #         'topic': 'depth:step1:BTC-USDT',
         #         'tpp': 7},
         #     'merge': 'step1'},
@@ -261,6 +325,74 @@ class allin(ccxt.async_support.allin):
         for i in range(0, len(deltas)):
             self.handle_delta(bookside, deltas[i])
 
+    def handle_ticker(self, client: Client, message):
+        # ticker = {
+        #     'id': 1,
+        #     'method': 'update.quote',
+        #     'error': null,
+        #     'result': {
+        #         'data': {
+        #             'symbol': 'BTC-USDT',
+        #             'timestamp': 1673417148,
+        #             'topic': 'quotes',
+        #             'price': '100.21',
+        #             'volume': '0',
+        #             'amount': '0',
+        #             'high': '100.21',
+        #             'low': '100.21',
+        #             'change': '0',
+        #             'tpp': 1,
+        #             'l_price': '100.21',
+        #         },
+        #         'market': 'BTC-USDT',
+        #     },
+        # }
+        self.log('ticker: ', message)
+        result = self.safe_dict(message, 'result')
+        tickerData = self.safe_dict(result, 'data')
+        symbolId = self.safe_string(tickerData, 'symbol')
+        market = self.safe_market(symbolId, None, None)
+        tickerData['timestamp'] = self.safe_timestamp(tickerData, 'timestamp')
+        symbol = market['symbol']
+        messageHash = 'update.quote'
+        ticker = self.parse_ticker(tickerData, market)
+        self.tickers[symbol] = ticker
+        client.resolve(ticker, messageHash)
+
+    def handle_tickers(self, client: Client, message):
+        # ticker = {
+        #     'id': 1,
+        #     'method': 'update.quotes',
+        #     'error': null,
+        #     'result': {
+        #         'data': {
+        #             'symbol': 'BTC-USDT',
+        #             'timestamp': 1673417148,
+        #             'topic': 'quotes',
+        #             'price': '100.21',
+        #             'volume': '0',
+        #             'amount': '0',
+        #             'high': '100.21',
+        #             'low': '100.21',
+        #             'change': '0',
+        #             'tpp': 1,
+        #             'l_price': '100.21',
+        #         },
+        #         'market': 'BTC-USDT',
+        #     },
+        # }
+        self.log('ticker: ', message)
+        result = self.safe_dict(message, 'result')
+        tickerData = self.safe_dict(result, 'data')
+        symbolId = self.safe_string(tickerData, 'symbol')
+        market = self.safe_market(symbolId, None, None)
+        tickerData['timestamp'] = self.safe_timestamp(tickerData, 'timestamp')
+        symbol = market['symbol']
+        messageHash = 'update.quotes'
+        ticker = self.parse_ticker(tickerData, market)
+        self.tickers[symbol] = ticker
+        client.resolve(self.tickers, messageHash)
+
     def handle_ohlcv(self, client: Client, message):
         # message = {
         #     'id': 1,
@@ -279,7 +411,7 @@ class allin(ccxt.async_support.allin):
         #                     'volume': '0',
         #                 },
         #             ],
-        #             'timestamp': 1672910460000,
+        #             'timestamp': 1721551500,
         #             'topic': 'kline:1Min:BTC-USDT',
         #             'tpp': 1,
         #             'type': '1Min',
@@ -483,7 +615,8 @@ class allin(ccxt.async_support.allin):
             'update.asset': self.handle_balance,
             'ping': self.handle_pong,
             'sign': self.handle_authenticate,
-            'subscribe.quote': None,
+            'update.quote': self.handle_ticker,
+            'update.quotes': self.handle_tickers,
         }
         methodStr = self.safe_string(message, 'method')
         method = self.safe_value(methodsDict, methodStr)

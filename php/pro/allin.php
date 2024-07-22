@@ -32,8 +32,8 @@ class allin extends \ccxt\async\allin {
                 'watchOrders' => true,
                 'watchOrdersForSymbols' => false,
                 'watchPositions' => false,
-                'watchTicker' => false,
-                'watchTickers' => false,
+                'watchTicker' => true,
+                'watchTickers' => true,
                 'watchTrades' => true,
                 'watchTradesForSymbols' => false,
             ),
@@ -113,6 +113,76 @@ class allin extends \ccxt\async\allin {
             $request['id'] = $reqId;
             $orderbook = Async\await($this->watch($url, $messageHash, $request, $messageHash, true));
             return $orderbook->limit ();
+        }) ();
+    }
+
+    public function watch_ticker(string $symbol, $params = array ()): PromiseInterface {
+        return Async\async(function () use ($symbol, $params) {
+            /**
+             * watches a price $ticker, a statistical calculation with the information calculated over the past 24 hours for a specific $market
+             * @see https://allinexchange.github.io/spot-docs/v1/en/#websocket-guide
+             * @param {string} $symbol unified $symbol of the $market to fetch the $ticker for
+             * @param {array} [$params] extra parameters specific to the exchange API endpoint
+             * @return {array} a ~@link https://docs.ccxt.com/#/?id=$ticker-structure $ticker structure~
+             */
+            // $response = array(
+            //     'id' => 1,
+            //     'method' => 'update.quote',
+            //     'error' => null, // 错误响应
+            //     'result' => array(
+            //         'data' => array(
+            //             'symbol' => 'BTC-USDT',
+            //             'timestamp' => 1673417148,
+            //             'topic' => 'quotes',
+            //             'price' => '100.21', // 价格
+            //             'volume' => '0',
+            //             'amount' => '0',
+            //             'high' => '100.21',
+            //             'low' => '100.21',
+            //             'change' => '0',
+            //             'tpp' => 1,
+            //             'l_price' => '100.21',
+            //         ), // 返回数据
+            //         'market' => 'BTC-USDT',
+            //     ), // 结果集
+            // );
+            Async\await($this->load_markets());
+            $market = $this->market($symbol);
+            $symbolId = $market['id'];
+            $messageHash = 'update.quote';
+            $type_ = 'spot';
+            $url = $this->urls['api']['ws'][$type_];
+            $request = array(
+                'method' => 'subscribe.quote',
+                'params' => array(
+                    'market' => $symbolId,
+                ),
+                'id' => $this->request_id(),
+            );
+            $ticker = Async\await($this->watch($url, $messageHash, $request, $messageHash, true));
+            return $ticker;
+        }) ();
+    }
+
+    public function watch_tickers($symbols = null, $params = array ()): PromiseInterface {
+        return Async\async(function () use ($symbols, $params) {
+            /**
+             * watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for all markets of a specific list
+             * @see https://allinexchange.github.io/spot-docs/v1/en/#websocket-guide
+             * @param {string[]} $symbols unified symbol of the market to fetch the ticker for
+             * @param {array} [$params] extra parameters specific to the exchange API endpoint
+             * @return {array} a ~@link https://docs.ccxt.com/#/?id=ticker-structure ticker structure~
+             */
+            $messageHash = 'update.quotes';
+            $type_ = 'spot';
+            $url = $this->urls['api']['ws'][$type_];
+            $request = array(
+                'method' => 'subscribe.quotes',
+                'params' => array(),
+                'id' => $this->request_id(),
+            );
+            $tickers = Async\await($this->watch($url, $messageHash, $request, $messageHash, true));
+            return $this->filter_by_array($tickers, 'symbol', $symbols);
         }) ();
     }
 
@@ -244,7 +314,7 @@ class allin extends \ccxt\async\allin {
         //             array( 'price' => '60000.0', 'quantity' => '1.100000' ),
         //             array( 'price' => '8850.2', 'quantity' => '0.200000' ) ),
         //         'symbol' => 'BTC-USDT',
-        //         'timestamp' => 1720856594882,
+        //         'timestamp' => 1721550307627,
         //         'topic' => 'depth:step1:BTC-USDT',
         //         'tpp' => 7 ),
         //     'merge' => 'step1' ),
@@ -283,6 +353,76 @@ class allin extends \ccxt\async\allin {
         }
     }
 
+    public function handle_ticker(Client $client, $message) {
+        // $ticker = array(
+        //     'id' => 1,
+        //     'method' => 'update.quote',
+        //     'error' => null,
+        //     'result' => array(
+        //         'data' => array(
+        //             'symbol' => 'BTC-USDT',
+        //             'timestamp' => 1673417148,
+        //             'topic' => 'quotes',
+        //             'price' => '100.21',
+        //             'volume' => '0',
+        //             'amount' => '0',
+        //             'high' => '100.21',
+        //             'low' => '100.21',
+        //             'change' => '0',
+        //             'tpp' => 1,
+        //             'l_price' => '100.21',
+        //         ),
+        //         'market' => 'BTC-USDT',
+        //     ),
+        // );
+        $this->log('ticker => ', $message);
+        $result = $this->safe_dict($message, 'result');
+        $tickerData = $this->safe_dict($result, 'data');
+        $symbolId = $this->safe_string($tickerData, 'symbol');
+        $market = $this->safe_market($symbolId, null, null);
+        $tickerData['timestamp'] = $this->safe_timestamp($tickerData, 'timestamp');
+        $symbol = $market['symbol'];
+        $messageHash = 'update.quote';
+        $ticker = $this->parse_ticker($tickerData, $market);
+        $this->tickers[$symbol] = $ticker;
+        $client->resolve ($ticker, $messageHash);
+    }
+
+    public function handle_tickers(Client $client, $message) {
+        // $ticker = array(
+        //     'id' => 1,
+        //     'method' => 'update.quotes',
+        //     'error' => null,
+        //     'result' => array(
+        //         'data' => array(
+        //             'symbol' => 'BTC-USDT',
+        //             'timestamp' => 1673417148,
+        //             'topic' => 'quotes',
+        //             'price' => '100.21',
+        //             'volume' => '0',
+        //             'amount' => '0',
+        //             'high' => '100.21',
+        //             'low' => '100.21',
+        //             'change' => '0',
+        //             'tpp' => 1,
+        //             'l_price' => '100.21',
+        //         ),
+        //         'market' => 'BTC-USDT',
+        //     ),
+        // );
+        $this->log('ticker => ', $message);
+        $result = $this->safe_dict($message, 'result');
+        $tickerData = $this->safe_dict($result, 'data');
+        $symbolId = $this->safe_string($tickerData, 'symbol');
+        $market = $this->safe_market($symbolId, null, null);
+        $tickerData['timestamp'] = $this->safe_timestamp($tickerData, 'timestamp');
+        $symbol = $market['symbol'];
+        $messageHash = 'update.quotes';
+        $ticker = $this->parse_ticker($tickerData, $market);
+        $this->tickers[$symbol] = $ticker;
+        $client->resolve ($this->tickers, $messageHash);
+    }
+
     public function handle_ohlcv(Client $client, $message) {
         // $message = array(
         //     'id' => 1,
@@ -301,7 +441,7 @@ class allin extends \ccxt\async\allin {
         //                     'volume' => '0',
         //                 ),
         //             ),
-        //             'timestamp' => 1672910460000,
+        //             'timestamp' => 1721551500,
         //             'topic' => 'kline:1Min:BTC-USDT',
         //             'tpp' => 1,
         //             'type' => '1Min',
@@ -523,7 +663,8 @@ class allin extends \ccxt\async\allin {
             'update.asset' => array($this, 'handle_balance'),
             'ping' => array($this, 'handle_pong'),
             'sign' => array($this, 'handle_authenticate'),
-            'subscribe.quote' => null,
+            'update.quote' => array($this, 'handle_ticker'),
+            'update.quotes' => array($this, 'handle_tickers'),
         );
         $methodStr = $this->safe_string($message, 'method');
         $method = $this->safe_value($methodsDict, $methodStr);

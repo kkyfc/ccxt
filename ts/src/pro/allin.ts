@@ -4,7 +4,7 @@
 import allinRest from '../allin.js';
 import { ArgumentsRequired, AuthenticationError, ExchangeError } from '../base/errors.js';
 import { ArrayCacheByTimestamp } from '../base/ws/Cache.js';
-import type { Int, Str, OrderBook, Balances, Order, OHLCV, Dict } from '../base/types.js';
+import type { Int, Str, OrderBook, Balances, Order, OHLCV, Dict, Ticker, Tickers } from '../base/types.js';
 import Client from '../base/ws/Client.js';
 import { sha256 } from '../static_dependencies/noble-hashes/sha256.js';
 
@@ -29,8 +29,8 @@ export default class allin extends allinRest {
                 'watchOrders': true,
                 'watchOrdersForSymbols': false,
                 'watchPositions': false,
-                'watchTicker': false,
-                'watchTickers': false,
+                'watchTicker': true,
+                'watchTickers': true,
                 'watchTrades': true,
                 'watchTradesForSymbols': false,
             },
@@ -111,6 +111,76 @@ export default class allin extends allinRest {
         request['id'] = reqId;
         const orderbook = await this.watch (url, messageHash, request, messageHash, true);
         return orderbook.limit ();
+    }
+
+    async watchTicker (symbol: string, params = {}): Promise<Ticker> {
+        /**
+         * @method
+         * @name allin#watchTicker
+         * @description watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#websocket-guide
+         * @param {string} symbol unified symbol of the market to fetch the ticker for
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        // const response = {
+        //     'id': 1,
+        //     'method': 'update.quote',
+        //     'error': null, // 错误响应
+        //     'result': {
+        //         'data': {
+        //             'symbol': 'BTC-USDT',
+        //             'timestamp': 1673417148,
+        //             'topic': 'quotes',
+        //             'price': '100.21', // 价格
+        //             'volume': '0',
+        //             'amount': '0',
+        //             'high': '100.21',
+        //             'low': '100.21',
+        //             'change': '0',
+        //             'tpp': 1,
+        //             'l_price': '100.21',
+        //         }, // 返回数据
+        //         'market': 'BTC-USDT',
+        //     }, // 结果集
+        // };
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const symbolId = market['id'];
+        const messageHash = 'update.quote';
+        const type_ = 'spot';
+        const url = this.urls['api']['ws'][type_];
+        const request = {
+            'method': 'subscribe.quote',
+            'params': {
+                'market': symbolId,
+            },
+            'id': this.requestId (),
+        };
+        const ticker = await this.watch (url, messageHash, request, messageHash, true);
+        return ticker;
+    }
+
+    async watchTickers (symbols = undefined, params = {}): Promise<Tickers> {
+        /**
+         * @method
+         * @name allin#watchTickers
+         * @description watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for all markets of a specific list
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#websocket-guide
+         * @param {string[]} symbols unified symbol of the market to fetch the ticker for
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        const messageHash = 'update.quotes';
+        const type_ = 'spot';
+        const url = this.urls['api']['ws'][type_];
+        const request = {
+            'method': 'subscribe.quotes',
+            'params': {},
+            'id': this.requestId (),
+        };
+        const tickers = await this.watch (url, messageHash, request, messageHash, true);
+        return this.filterByArray (tickers, 'symbol', symbols);
     }
 
     async watchBalance (params = {}): Promise<Balances> {
@@ -239,7 +309,7 @@ export default class allin extends allinRest {
         //             { 'price': '60000.0', 'quantity': '1.100000' },
         //             { 'price': '8850.2', 'quantity': '0.200000' } ],
         //         'symbol': 'BTC-USDT',
-        //         'timestamp': 1720856594882,
+        //         'timestamp': 1721550307627,
         //         'topic': 'depth:step1:BTC-USDT',
         //         'tpp': 7 },
         //     'merge': 'step1' },
@@ -278,6 +348,76 @@ export default class allin extends allinRest {
         }
     }
 
+    handleTicker (client: Client, message) {
+        // const ticker = {
+        //     'id': 1,
+        //     'method': 'update.quote',
+        //     'error': null,
+        //     'result': {
+        //         'data': {
+        //             'symbol': 'BTC-USDT',
+        //             'timestamp': 1673417148,
+        //             'topic': 'quotes',
+        //             'price': '100.21',
+        //             'volume': '0',
+        //             'amount': '0',
+        //             'high': '100.21',
+        //             'low': '100.21',
+        //             'change': '0',
+        //             'tpp': 1,
+        //             'l_price': '100.21',
+        //         },
+        //         'market': 'BTC-USDT',
+        //     },
+        // };
+        this.log ('ticker: ', message);
+        const result = this.safeDict (message, 'result');
+        const tickerData = this.safeDict (result, 'data');
+        const symbolId = this.safeString (tickerData, 'symbol');
+        const market = this.safeMarket (symbolId, undefined, undefined);
+        tickerData['timestamp'] = this.safeTimestamp (tickerData, 'timestamp');
+        const symbol = market['symbol'];
+        const messageHash = 'update.quote';
+        const ticker = this.parseTicker (tickerData, market);
+        this.tickers[symbol] = ticker;
+        client.resolve (ticker, messageHash);
+    }
+
+    handleTickers (client: Client, message) {
+        // const ticker = {
+        //     'id': 1,
+        //     'method': 'update.quotes',
+        //     'error': null,
+        //     'result': {
+        //         'data': {
+        //             'symbol': 'BTC-USDT',
+        //             'timestamp': 1673417148,
+        //             'topic': 'quotes',
+        //             'price': '100.21',
+        //             'volume': '0',
+        //             'amount': '0',
+        //             'high': '100.21',
+        //             'low': '100.21',
+        //             'change': '0',
+        //             'tpp': 1,
+        //             'l_price': '100.21',
+        //         },
+        //         'market': 'BTC-USDT',
+        //     },
+        // };
+        this.log ('ticker: ', message);
+        const result = this.safeDict (message, 'result');
+        const tickerData = this.safeDict (result, 'data');
+        const symbolId = this.safeString (tickerData, 'symbol');
+        const market = this.safeMarket (symbolId, undefined, undefined);
+        tickerData['timestamp'] = this.safeTimestamp (tickerData, 'timestamp');
+        const symbol = market['symbol'];
+        const messageHash = 'update.quotes';
+        const ticker = this.parseTicker (tickerData, market);
+        this.tickers[symbol] = ticker;
+        client.resolve (this.tickers, messageHash);
+    }
+
     handleOHLCV (client: Client, message) {
         // const message = {
         //     'id': 1,
@@ -296,7 +436,7 @@ export default class allin extends allinRest {
         //                     'volume': '0',
         //                 },
         //             ],
-        //             'timestamp': 1672910460000,
+        //             'timestamp': 1721551500,
         //             'topic': 'kline:1Min:BTC-USDT',
         //             'tpp': 1,
         //             'type': '1Min',
@@ -518,7 +658,8 @@ export default class allin extends allinRest {
             'update.asset': this.handleBalance,
             'ping': this.handlePong,
             'sign': this.handleAuthenticate,
-            'subscribe.quote': undefined,
+            'update.quote': this.handleTicker,
+            'update.quotes': this.handleTickers,
         };
         const methodStr = this.safeString (message, 'method');
         const method = this.safeValue (methodsDict, methodStr);
