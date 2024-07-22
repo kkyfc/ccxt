@@ -716,7 +716,7 @@ export default class allin extends Exchange {
         const request = this.createOrderRequest(symbol, type, side, amount, price, params, market);
         const response = await this.privatePostOpenV1OrdersPlace(request);
         const orderData = this.safeDict(response, 'data');
-        const timestamp = this.safeTimestamp(response, 'time');
+        const timestamp = this.safeInteger(response, 'time'); // timestamp in s
         return this.parseOrder({
             'order_id': this.safeString(orderData, 'order_id'),
             'trade_no': this.safeString(orderData, 'trade_no'),

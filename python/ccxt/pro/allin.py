@@ -300,7 +300,7 @@ class allin(ccxt.async_support.allin):
         abData = self.safe_dict(result, 'data')
         marketId = self.safe_string(abData, 'symbol')
         market = self.safe_market(marketId, None, None)
-        timestamp = self.safe_timestamp(abData, 'timestamp')
+        timestamp = self.safe_integer(abData, 'timestamp')
         messageHash = self.safe_string(abData, 'topic')
         symbol = market['symbol']
         if not (symbol in self.orderbooks):

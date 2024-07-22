@@ -711,7 +711,7 @@ class allin extends Exchange {
         );
         $response = $this->privatePostOpenV1OrdersPlace ($request);
         $orderData = $this->safe_dict($response, 'data');
-        $timestamp = $this->safe_timestamp($response, 'time');
+        $timestamp = $this->safe_integer($response, 'time');  // $timestamp in s
         return $this->parse_order(array(
             'order_id' => $this->safe_string($orderData, 'order_id'),
             'trade_no' => $this->safe_string($orderData, 'trade_no'),

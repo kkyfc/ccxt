@@ -700,7 +700,7 @@ class allin(Exchange, ImplicitAPI):
         )
         response = self.privatePostOpenV1OrdersPlace(request)
         orderData = self.safe_dict(response, 'data')
-        timestamp = self.safe_timestamp(response, 'time')
+        timestamp = self.safe_integer(response, 'time')  # timestamp in s
         return self.parse_order({
             'order_id': self.safe_string(orderData, 'order_id'),
             'trade_no': self.safe_string(orderData, 'trade_no'),
