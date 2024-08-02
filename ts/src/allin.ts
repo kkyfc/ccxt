@@ -27,6 +27,8 @@ export default class allin extends Exchange {
             'certified': false,
             'options': {
                 'sandboxMode': false,
+                'fetchMarkets': [ 'spot', 'future' ],
+                'defaultType': 'spot',  // 'future', 'spot'
             },
             'has': {
                 'CORS': true,
@@ -112,11 +114,11 @@ export default class allin extends Exchange {
                 'fetchPremiumIndexOHLCV': true,
                 'fetchSettlementHistory': true,
                 'fetchTicker': true,
-                'fetchTickers': true,
+                'fetchTickers': false,
                 'fetchTime': true,
                 'fetchTrades': true,
-                'fetchTradingFee': true,
-                'fetchTradingFees': true,
+                'fetchTradingFee': false,
+                'fetchTradingFees': false,
                 'fetchTransactions': false,
                 'fetchTransfers': true,
                 'fetchUnderlyingAssets': false,
@@ -147,32 +149,33 @@ export default class allin extends Exchange {
             },
             'urls': {
                 'test': {
-                    'spot': 'https://api.allintest.pro',
-                    'futures': 'https://api.allintest.pro',
-                    'public': 'https://api.allintest.pro',
-                    'private': 'https://api.allintest.pro',
+                    'spotPublic': 'https://api.allintest.pro',
+                    'spotPrivate': 'https://api.allintest.pro',
+                    'futurePublic': 'https://api.allintest.pro/futuresopen',
+                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
                 },
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc': [ 'https://allinexchange.github.io/spot-docs/v1/en/#introduction' ],
                 'api': {
-                    'spot': 'https://api.allintest.pro',
-                    'futures': 'https://api.allintest.pro',
-                    'public': 'https://api.allintest.pro',
-                    'private': 'https://api.allintest.pro',
+                    'spotPublic': 'https://api.allintest.pro',
+                    'spotPrivate': 'https://api.allintest.pro',
+                    'futurePublic': 'https://api.allintest.pro/futuresopen',
+                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
                 },
             },
             'api': {
-                'public': {
+                'spotPublic': {
                     'get': {
+                        // public
                         '/open/v1/tickers/market': 0,
                         '/open/v1/depth/market': 0,
                         '/open/v1/trade/market': 0,
                         '/open/v1/kline/market': 0,
+                        '/open/v1/tickers/exchange_info': 0,
                     },
                 },
-                'private': {
+                'spotPrivate': {
                     'get': {
-                        '/open/v1/tickers/exchange_info': 0,
                         '/open/v1/tickers': 0,
                         '/open/v1/balance': 0,
                         '/open/v1/timestamp': 0,
@@ -189,6 +192,47 @@ export default class allin extends Exchange {
                         '/open/v1/orders/place': 0,
                         '/open/v1/orders/cancel': 0,
                         '/open/v1/orders/batcancel': 0,
+                    },
+                },
+                'futurePublic': {
+                    'get': {
+                        // public
+                        '/open/api/v2/market/kline': 0,
+                        '/open/api/v2/market/list': 0,
+                        '/open/api/v2/market/deals': 0,
+                        '/open/api/v2/market/depth': 0,
+                        '/open/api/v2/market/state': 0,
+                        '/open/api/v2/market/state/all': 0,
+                    },
+                },
+                'futurePrivate': {
+                    'get': {
+                        // private
+                        '/open/api/v2/order/deals': 0,
+                        '/open/api/v2/order/finished': 0,
+                        '/open/api/v2/order/detail': 0,
+                        '/open/api/v2/order/pending': 0,
+                        '/open/api/v2/order/stop/pending': 0,
+                        '/open/api/v2/order/stop/finished': 0,
+                        '/open/api/v2/setting/leverage': 0,
+                        '/open/api/v2/asset/query': 0,
+                        '/open/api/v2/asset/history': 0,
+                        '/open/api/v2/position/pending': 0,
+                        '/open/api/v2/position/margin': 0,
+                    },
+                    'post': {
+                        '/open/api/v2/position/margin': 0,
+                        '/open/api/v2/order/market': 0,
+                        '/open/api/v2/order/cancel/all': 0,
+                        '/open/api/v2/order/cancel': 0,
+                        '/open/api/v2/order/limit': 0,
+                        '/open/api/v2/order/stop': 0,
+                        '/open/api/v2/order/stop/cancel': 0,
+                        '/open/api/v2/order/stop/cancel/all': 0,
+                        '/open/api/v2/setting/leverage': 0,
+                        '/open/api/v2/position/close/limit': 0,
+                        '/open/api/v2/position/close/market': 0,
+                        '/open/api/v2/position/close/stop': 0,
                     },
                 },
             },
@@ -275,25 +319,151 @@ export default class allin extends Exchange {
         //     'time': 1720058066 };
         const promisesRaw = [];
         // const sandboxMode = this.safeBool (this.options, 'sandboxMode', false);
-        const rawFetchMarkets = this.safeList (this.options, 'fetchMarkets', [ 'spot', 'linear', 'inverse' ]);
+        const rawFetchMarkets = this.safeList (this.options, 'fetchMarkets', [ 'spot', 'future' ]);
         for (let i = 0; i < rawFetchMarkets.length; i++) {
             const marketType = rawFetchMarkets[i];
             if (marketType === 'spot') {
-                promisesRaw.push (this.privateGetOpenV1TickersExchangeInfo (params));
+                promisesRaw.push (this.spotPublicGetOpenV1TickersExchangeInfo (params));
+            } else if (marketType === 'future') {
+                promisesRaw.push (this.futurePublicGetOpenApiV2MarketList (params));
             }
         }
         const promises = await Promise.all (promisesRaw);
         let markets = [];
+        let promiseMarkets = undefined;
         for (let i = 0; i < rawFetchMarkets.length; i++) {
+            const type_ = rawFetchMarkets[i];
             const promise = this.safeDict (promises, i);
-            const dataDict = this.safeDict (promise, 'data', {});
-            const promiseMarkets = this.safeList (dataDict, 'symbols', []);
+            if (type_ === 'spot') {
+                const dataDict = this.safeDict (promise, 'data', {});
+                promiseMarkets = this.safeList (dataDict, 'symbols', []);
+            } else if (type_ === 'future') {
+                promiseMarkets = this.safeList (promise, 'data', []);
+            } else {
+                continue;
+            }
             markets = this.arrayConcat (markets, promiseMarkets);
         }
         return this.parseMarkets (markets);
     }
 
     parseMarket (market: Dict): MarketInterface {
+        const spot = this.safeBool (market, 'is_spot_trading_allowed', false) === true;
+        if (spot) {
+            return this.parseSpotMarket (market);
+        } else {
+            return this.parseFutureMarket (market);
+        }
+    }
+
+    parseFutureMarket (market: Dict): MarketInterface {
+        // const market = { 'code': 0,
+        //     'data': [ { 'amount_min': '0.0001',
+        //         'amount_prec': 4,
+        //         'available': True,
+        //         'fee_prec': 8,
+        //         'leverages': [ '5', '8', '10', '15', '20', '30', '50', '100' ],
+        //         'limits': [ [ '500.0001', '5', '0.1' ],
+        //             [ '200.0001', '10', '0.05' ],
+        //             [ '100.0001', '15', '0.03' ],
+        //             [ '50.0001', '20', '0.02' ],
+        //             [ '20.0001', '50', '0.01' ],
+        //             [ '10.0001', '100', '0.005' ] ],
+        //         'merges': [ '100', '10', '1', '0.1', '0.01' ],
+        //         'money': 'USDT',
+        //         'money_prec': 2,
+        //         'name': 'BTCUSDT',
+        //         'sort': 1,
+        //         'stock': 'BTC',
+        //         'stock_prec': 8,
+        //         'tick_size': '0.01',
+        //         'type': 1 } ],
+        //     'msg': 'success',
+        //     'time': 1722510060 };
+        const origin_symbol = this.safeString (market, 'name');
+        const active = this.safeBool (market, 'available');
+        const baseId = this.safeString (market, 'stock');
+        const quoteId = this.safeString (market, 'money');
+        const base = this.safeCurrencyCode (baseId);
+        const quote = this.safeCurrencyCode (quoteId);
+        const spot = false;
+        const future = false;
+        const swap = true;
+        const option = false;
+        const type_ = 'swap';
+        const contract = swap || future || option;
+        let settle = undefined;
+        const futureType = this.safeInteger (market, 'type');
+        let linear = undefined;
+        if (futureType === 1) {
+            settle = quote;
+            linear = true;
+        } else {
+            settle = base;
+            linear = false;
+        }
+        const settleId = settle;
+        const symbol = base + '/' + quote + ':' + settle;
+        const fees = {};
+        const leverages = this.safeList (market, 'leverages');
+        const maxLeverage = this.safeString (leverages, leverages.length - 1);
+        const minLeverage = this.safeString (leverages, 0);
+        const base_precision = this.safeNumber (market, 'stock_prec');
+        const quote_precision = this.safeNumber (market, 'money_prec');
+        return this.extend (fees, {
+            'id': origin_symbol,
+            'symbol': symbol,
+            'base': base,
+            'quote': quote,
+            'baseId': baseId,
+            'quoteId': quoteId,
+            'active': active,
+            'type': type_,
+            'spot': spot,
+            'margin': false,
+            'swap': swap,
+            'future': future,
+            'option': false,
+            'contract': contract,
+            'settle': settle,
+            'settleId': settleId,
+            'contractSize': contract ? this.safeNumber (market, 'tick_size') : undefined,
+            'linear': linear,
+            'inverse': !linear,
+            'expiry': undefined,
+            'expiryDatetime': undefined,
+            'strike': undefined,
+            'optionType': undefined,
+            'maker': 0.0001,
+            'taker': 0.0002,
+            'created': undefined,
+            'precision': {
+                'amount': base_precision,
+                'price': quote_precision,
+            },
+            'limits': {
+                'leverage': {
+                    'min': this.parseNumber (minLeverage),
+                    'max': this.parseNumber (maxLeverage),
+                },
+                'amount': {
+                    'min': this.safeNumber (market, 'amount_min'),
+                    'max': undefined,
+                },
+                'price': {
+                    'min': undefined,
+                    'max': undefined,
+                },
+                'cost': {
+                    'min': undefined,
+                    'max': undefined,
+                },
+            },
+            'info': market,
+        });
+    }
+
+    parseSpotMarket (market: Dict): MarketInterface {
         // market = { 'symbol': 'BTC-USDT',
         //     'status': 'TRADING',
         //     'base_asset': 'USDT',
@@ -308,9 +478,9 @@ export default class allin extends Exchange {
         const active = market['status'] === 'TRADING';
         let baseId = this.safeString (market, 'base_asset');
         let quoteId = this.safeString (market, 'quote_asset');
-        const spot = market['is_spot_trading_allowed'] === true;
-        const swap = false;
+        const spot = true;
         const future = false;
+        const swap = false;
         const option = false;
         const type_ = 'spot';
         const contract = swap || future || option;
@@ -403,6 +573,7 @@ export default class allin extends Exchange {
     }
 
     async fetchTicker (symbol: string, params = {}): Promise<Ticker> {
+        // spot
         // const tickers = { 'code': 0,
         //     'msg': 'ok',
         //     'data': [ { 'symbol': 'BTC-USDT',
@@ -416,13 +587,46 @@ export default class allin extends Exchange {
         //         'price': '68000',
         //         'l_price': '68000' } ],
         //     'time': 1720064580 };
+        // future
+        // {
+        //     "code": 0,
+        //     "msg": "success",
+        //     "data": {
+        //       "market": "ETHUSDT",
+        //       "amount": "4753.05",
+        //       "high": "1573.89",
+        //       "last": "1573.89",
+        //       "low": "1571.23",
+        //       "open": "1571.23",
+        //       "change": "0.0016929411989333",
+        //       "period": 86400,
+        //       "volume": "3.02",
+        //       "funding_time": 400,
+        //       "position_amount": "2.100",
+        //       "funding_rate_last": "0.00375",
+        //       "funding_rate_next": "0.00293873",
+        //       "funding_rate_predict": "-0.00088999",
+        //       "insurance": "10500.45426906585552617850",
+        //       "sign_price": "1581.98",
+        //       "index_price": "1578.12",
+        //       "sell_total": "112.974",
+        //       "buy_total": "170.914"
+        //     }
+        //   }
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request: Dict = {
             'symbol': market['id'],
         };
-        const response = await this.publicGetOpenV1TickersMarket (this.extend (request, params));
-        const timestamp = this.safeTimestamp (response, 'time');
+        let response = undefined;
+        if (market['spot']) {
+            response = await this.spotPublicGetOpenV1TickersMarket (this.extend (request, params));
+        } else if (market['future']) {
+            response = await this.futurePublicGetOpenApiV2MarketState (this.extend (request, params));
+        } else {
+            return null;
+        }
+        const timestamp = this.safeTimestamp (response, 'time', this.milliseconds ());
         const TickerList = this.safeList (response, 'data', []);
         const firstTicker = this.safeValue (TickerList, 0, {});
         firstTicker['timestamp'] = timestamp;
@@ -454,13 +658,24 @@ export default class allin extends Exchange {
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request: Dict = {
-            'symbol': market['id'],
-        };
-        const response = await this.publicGetOpenV1DepthMarket (this.extend (request, params));
-        const result = this.safeDict (response, 'data', {});
-        const timestamp = this.safeTimestamp (response, 'time');
-        return this.parseOrderBook (result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+        let response = undefined;
+        if (market['spot']) {
+            const request: Dict = {
+                'symbol': market['id'],
+            };
+            response = await this.spotPublicGetOpenV1DepthMarket (request);
+            const result = this.safeDict (response, 'data', {});
+            const timestamp = this.safeTimestamp (response, 'time');
+            return this.parseOrderBook (result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+        } else {
+            const request: Dict = {
+                'market': market['id'],
+            };
+            response = await this.futurePublicGetOpenApiV2MarketDepth (request);
+            const result = this.safeDict (response, 'data', {});
+            const timestamp = this.safeInteger (result, 'time');
+            return this.parseOrderBook (result, symbol, timestamp, 'bids', 'asks', 0, 1);
+        }
     }
 
     async fetchBalance (params = {}): Promise<Balances> {
@@ -469,6 +684,7 @@ export default class allin extends Exchange {
          * @name allin#fetchBalance
          * @description query for balance and get the amount of funds available for trading or funds locked in orders
          * @see https://allinexchange.github.io/spot-docs/v1/en/#account-balance
+         * @param {string} [params.type] wallet type, ['spot', 'future']
          */
         // const balances = { 'code': 0,
         //     'msg': 'ok',
@@ -479,8 +695,18 @@ export default class allin extends Exchange {
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
         await this.loadMarkets ();
-        const response = await this.privateGetOpenV1Balance (params);
-        return this.parseBalance (response);
+        let response = undefined;
+        let currentType = this.safeString (params, 'defaultType', undefined);
+        if (!currentType) {
+            currentType = this.options['defaultType'];
+        }
+        if (currentType === 'spot') {
+            response = await this.spotPrivateGetOpenV1Balance ();
+            return this.parseSpotBalance (response);
+        } else if (currentType === 'future') {
+            response = await this.futurePrivateGetOpenApiV2AssetQuery ();
+            return this.parseFutureBalance (response);
+        }
     }
 
     async fetchOHLCV (symbol: string, timeframe: string = '1m', since: Int = undefined, limit: Int = undefined, params = {}): Promise<OHLCV[]> {
@@ -492,8 +718,8 @@ export default class allin extends Exchange {
          * @see https://allinexchange.github.io/spot-docs/v1/en/#market-k-line
          * @param {string} symbol unified symbol of the market to fetch OHLCV data for
          * @param {string} timeframe the length of time each candle represents
-         * @param {int} [since] not support
-         * @param {int} [limit] not support
+         * @param {int} [since] timestamp in ms of the earliest funding rate to fetch
+         * @param {int} [limit] the maximum amount of [funding rate structures]
          */
         // const kline = { 'code': 0,
         //     'msg': 'ok',
@@ -505,12 +731,45 @@ export default class allin extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const marketId = this.marketId (symbol);
-        const duration = this.timeframes[timeframe];
-        params = this.extend (params, {
-            'symbol': marketId,
-            'type': duration,
-        });
-        const response = await this.publicGetOpenV1KlineMarket (params);
+        const spot = market['spot'];
+        // const swap = market['swap'];
+        let duration = this.timeframes[timeframe];
+        let request = {};
+        let response = undefined;
+        if (spot) {
+            request = {
+                'symbol': marketId,
+                'type': duration,
+            };
+            response = await this.spotPublicGetOpenV1KlineMarket (request);
+        } else {
+            let start = undefined;
+            let end = undefined;
+            // duration time steep
+            const interval = this.parseTimeframe (timeframe);
+            if (limit && since) {
+                start = since;
+                end = start + limit * interval * 1000 - 1;
+            } else if (limit) {
+                end = this.milliseconds ();
+                start = end - limit * interval * 1000;
+            } else if (since) {
+                end = this.milliseconds ();
+                start = since;
+            }
+            duration = String (duration).toLowerCase ();
+            request = {
+                'market': marketId,
+                'type': duration,
+            };
+            if (start !== undefined) {
+                request['start_time'] = start / 1000;
+            }
+            if (end !== undefined) {
+                request['end_time'] = end / 1000;
+            }
+            response = await this.futurePublicGetOpenApiV2MarketKline (request);
+        }
         const klines = this.safeList (response, 'data', []);
         return this.parseOHLCVs (klines, market, timeframe, since, limit);
     }
@@ -569,7 +828,7 @@ export default class allin extends Exchange {
         if (since !== undefined) {
             request['start'] = since;
         }
-        const response = await this.privateGetOpenV1Orders (request);
+        const response = await this.spotPrivateGetOpenV1Orders (request);
         const orders = this.safeList (this.safeDict (response, 'data', {}), 'orders');
         return this.parseOrders (orders, market, since, limit, params);
     }
@@ -607,7 +866,7 @@ export default class allin extends Exchange {
         const request: Dict = this.extend (params, {
             'symbol': market['id'],
         });
-        const response = await this.privateGetOpenV1OrdersLast (request);
+        const response = await this.spotPrivateGetOpenV1OrdersLast (request);
         const orders = this.safeList (response, 'data');
         return this.parseOrders (orders, market);
     }
@@ -646,6 +905,33 @@ export default class allin extends Exchange {
         //             }]
         //     }
         // }
+        // future
+        // const futureOrder = {
+        //     'code': 0,
+        //     'msg': 'success',
+        //     'data': {
+        //         'order_id': 1470445037,
+        //         'position_id': 0,
+        //         'market': 'ETHUSDT',
+        //         'type': 2,
+        //         'side': 1,
+        //         'left': '0',
+        //         'amount': '1',
+        //         'filled': '1',
+        //         'deal_fee': '0.7869',
+        //         'price': '0',
+        //         'avg_price': '1573.84',
+        //         'deal_stock': '1573.84',
+        //         'position_type': 1,
+        //         'leverage': '20',
+        //         'update_time': 1697616547.90107,
+        //         'create_time': 1697616547.901067,
+        //         'status': 3,
+        //         'stop_loss_price': '-',
+        //         'take_profit_price': '-',
+        //         'client_oid': '36341ddd362363263626',
+        //     },
+        // };
         if (id === undefined) {
             throw new ArgumentsRequired (this.id + ' fetchOrder() requires a orderId argument');
         }
@@ -654,11 +940,20 @@ export default class allin extends Exchange {
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request: Dict = {
-            'order_id': id,
-            'symbol': market['id'],
-        };
-        const response = await this.privateGetOpenV1OrdersDetail (request);
+        let response = undefined;
+        if (market['spot']) {
+            const request: Dict = {
+                'order_id': id,
+                'symbol': market['id'],
+            };
+            response = await this.spotPrivateGetOpenV1OrdersDetail (request);
+        } else {
+            const request: Dict = {
+                'order_id': id,
+                'market': market['id'],
+            };
+            response = await this.futurePrivateGetOpenApiV2OrderDetail (request);
+        }
         const order = this.safeDict (response, 'data');
         return this.parseOrder (order, market);
     }
@@ -693,7 +988,7 @@ export default class allin extends Exchange {
         const request: Dict = {
             'symbol': market['id'],
         };
-        const response = await this.publicGetOpenV1TradeMarket (request);
+        const response = await this.spotPublicGetOpenV1TradeMarket (request);
         const trades = this.safeList (response, 'data');
         return this.parseTrades (trades, market, since, limit);
     }
@@ -731,7 +1026,7 @@ export default class allin extends Exchange {
             params,
             market
         );
-        const response = await this.privatePostOpenV1OrdersPlace (request);
+        const response = await this.spotPrivatePostOpenV1OrdersPlace (request);
         const orderData = this.safeDict (response, 'data');
         const timestamp = this.safeInteger (response, 'time');  // timestamp in s
         return this.parseOrder ({
@@ -786,7 +1081,7 @@ export default class allin extends Exchange {
             'symbol': market['id'],
             'order_id': id,
         };
-        const response = await this.privatePostOpenV1OrdersCancel (request);
+        const response = await this.spotPrivatePostOpenV1OrdersCancel (request);
         const orderData = this.safeDict (response, 'data');
         return this.parseOrder (orderData, market);
     }
@@ -816,7 +1111,7 @@ export default class allin extends Exchange {
         const ts = nonce;
         const client_id = this.apiKey;
         let requestParams = this.extend ({}, params);
-        if (api === 'private') {
+        if ((api === 'spotPrivate') || (api === 'futurePrivate') || (api === 'private')) {
             this.checkRequiredCredentials ();
             requestParams = this.extend (requestParams, { 'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': this.apiKey });
             const s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts;
@@ -886,7 +1181,7 @@ export default class allin extends Exchange {
         }, market);
     }
 
-    parseBalance (response: any): Balances {
+    parseSpotBalance (response: any): Balances {
         // const balances = { 'code': 0,
         //     'msg': 'ok',
         //     'data': [
@@ -896,7 +1191,7 @@ export default class allin extends Exchange {
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
         const originBalances = this.safeList (response, 'data', []);
-        const timestamp = this.safeTimestamp (response, 'timestamp');
+        const timestamp = this.safeTimestamp (response, 'time');
         const balances = {
             'info': originBalances,
             'timestamp': timestamp,
@@ -908,6 +1203,48 @@ export default class allin extends Exchange {
             const used = this.safeString (originBalance, 'freeze');
             const total = this.safeString (originBalance, 'amount');
             const free = Precise.stringSub (total, used);
+            balances[symbol] = {
+                'free': free,
+                'used': used,
+                'total': total,
+                'debt': 0, // ???
+            };
+        }
+        return this.safeBalance (balances);
+    }
+
+    parseFutureBalance (response: any): Balances {
+        // const response = {
+        //     'code': 0,
+        //     'msg': 'success',
+        //     'data': {
+        //         'USDT': {
+        //             'available': '8300.569',
+        //             'frozen': '0',
+        //             'margin': '0',
+        //             'balance_total': '8300.569',
+        //             'profit_unreal': '0',
+        //             'transfer': '8300.569',
+        //             'bonus': '0',
+        //         },
+        //     },
+        //     'time': 1720067861,
+        // };
+        const originBalances = this.safeDict (response, 'data', {});
+        const timestamp = this.safeTimestamp (response, 'time');
+        const balances = {
+            'info': originBalances,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+        };
+        const keys = Object.keys (originBalances);
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            const originBalance = originBalances[key];
+            const symbol = key;
+            const used = this.safeString (originBalance, 'frozen');
+            const total = this.safeString (originBalance, 'balance_total');
+            const free = this.safeString (originBalance, 'available');
             balances[symbol] = {
                 'free': free,
                 'used': used,
@@ -1072,8 +1409,8 @@ export default class allin extends Exchange {
         //             'time': 1574922846833
         //             }]
         //     }
-        const timestamp = this.safeTimestamp (order, 'create_at');
-        const symbol = this.safeString (market, 'symbol');
+        const timestamp = this.safeTimestamp2 (order, 'create_at', 'create_time');
+        const symbol = this.safeString2 (market, 'symbol', 'market');
         const type_ = this.parseOrderType (this.safeString (order, 'order_type'));
         const side = this.parseOrderSide (this.safeInteger (order, 'side'));
         const price = this.safeString (order, 'price');
