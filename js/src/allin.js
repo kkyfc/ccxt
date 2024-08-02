@@ -256,7 +256,7 @@ export default class allin extends Exchange {
         //                 'quote_precision': 6,
         //                 'quote_asset_precision': 8,
         //                 'order_types': [ 'LIMIT', 'MARKET' ],
-        //                 'order_side': { 'buy': 1, 'sell': -1 },
+        //                 'order_side': { 'buy': 2, 'sell': 1 },
         //                 'is_spot_trading_allowed': true,
         //                 'min_order_amount': '2' },
         //             { 'symbol': 'ETH-USDT',
@@ -268,7 +268,7 @@ export default class allin extends Exchange {
         //                 'quote_precision': 6,
         //                 'quote_asset_precision': 8,
         //                 'order_types': [ 'LIMIT', 'MARKET' ],
-        //                 'order_side': { 'buy': 1, 'sell': -1 },
+        //                 'order_side': { 'buy': 2, 'sell': 1 },
         //                 'is_spot_trading_allowed': true,
         //                 'min_order_amount': '2' } ],
         //         'timezone': 'UTC' },
@@ -300,7 +300,7 @@ export default class allin extends Exchange {
         //     'quote_asset': 'BTC',
         //     'quote_precision': 6,
         //     'order_types': [ 'LIMIT', 'MARKET' ],
-        //     'order_side': { 'buy': 1, 'sell': -1 },
+        //     'order_side': { 'buy': 2, 'sell': 1 },
         //     'is_spot_trading_allowed': true,
         //     'min_order_amount': '2' };
         const origin_symbol = this.safeString(market, 'symbol');
@@ -520,7 +520,7 @@ export default class allin extends Exchange {
          * @param {int} [since] Starting time, time stamp
          * @param {int} [limit] not support
          * @param {object} [params] extra parameters specific to the exchange API endpoint
-         * @param {string} [params.side] Direction，1 buy，-1 sell，0 all
+         * @param {string} [params.side] Direction，1 sell，2 buy，0 all
          * @param {string} [params.end] Closing time, time stamp
          */
         // const orders = {
@@ -538,7 +538,7 @@ export default class allin extends Exchange {
         //                 'match_amt': '0',
         //                 'match_qty': '0',
         //                 'match_price': '',
-        //                 'side': -1,
+        //                 'side': 1,
         //                 'order_type': 1,
         //                 'status': 6,
         //                 'create_at': 1574744151836,
@@ -554,7 +554,6 @@ export default class allin extends Exchange {
         const market = this.market(symbol);
         const request = this.extend(params, {
             'symbol': market['id'],
-            'side': 0,
         });
         let paginate = false;
         [paginate, params] = this.handleOptionAndParams(params, 'fetchOrders', 'paginate');
@@ -939,7 +938,7 @@ export default class allin extends Exchange {
         const timestamp = this.safeTimestamp(trade, 'time');
         const symbol = this.safeString(market, 'symbol');
         const sideNumber = this.safeInteger(trade, 'side');
-        const side = (sideNumber === 1) ? 'buy' : 'sell';
+        const side = (sideNumber === 1) ? 'sell' : 'buy';
         const amount = this.safeString(trade, 'amount');
         const volume = this.safeString(trade, 'volume');
         return this.safeTrade({
@@ -963,7 +962,7 @@ export default class allin extends Exchange {
         if (type_ === 'LIMIT' || type_ === '1') {
             return 'limit';
         }
-        else if (type_ === 'MARKET' || type_ === '3') {
+        else if (type_ === 'MARKET' || type_ === '2') {
             return 'market';
         }
         else {
@@ -983,7 +982,7 @@ export default class allin extends Exchange {
         }
     }
     parseOrderSide(side) {
-        if (side === 1) {
+        if (side === 2) {
             return 'buy';
         }
         else {
@@ -992,10 +991,10 @@ export default class allin extends Exchange {
     }
     toOrderSide(side) {
         if (side === 'buy') {
-            return 1;
+            return 2;
         }
         else {
-            return -1;
+            return 1;
         }
     }
     parseOrderStatus(status) {

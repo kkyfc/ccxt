@@ -262,7 +262,7 @@ class allin(Exchange, ImplicitAPI):
         #                 'quote_precision': 6,
         #                 'quote_asset_precision': 8,
         #                 'order_types': ['LIMIT', 'MARKET'],
-        #                 'order_side': {'buy': 1, 'sell': -1},
+        #                 'order_side': {'buy': 2, 'sell': 1},
         #                 'is_spot_trading_allowed': True,
         #                 'min_order_amount': '2'},
         #             {'symbol': 'ETH-USDT',
@@ -274,7 +274,7 @@ class allin(Exchange, ImplicitAPI):
         #                 'quote_precision': 6,
         #                 'quote_asset_precision': 8,
         #                 'order_types': ['LIMIT', 'MARKET'],
-        #                 'order_side': {'buy': 1, 'sell': -1},
+        #                 'order_side': {'buy': 2, 'sell': 1},
         #                 'is_spot_trading_allowed': True,
         #                 'min_order_amount': '2'}],
         #         'timezone': 'UTC'},
@@ -303,7 +303,7 @@ class allin(Exchange, ImplicitAPI):
         #     'quote_asset': 'BTC',
         #     'quote_precision': 6,
         #     'order_types': ['LIMIT', 'MARKET'],
-        #     'order_side': {'buy': 1, 'sell': -1},
+        #     'order_side': {'buy': 2, 'sell': 1},
         #     'is_spot_trading_allowed': True,
         #     'min_order_amount': '2'}
         origin_symbol = self.safe_string(market, 'symbol')
@@ -510,7 +510,7 @@ class allin(Exchange, ImplicitAPI):
         :param int [since]: Starting time, time stamp
         :param int [limit]: not support
         :param dict [params]: extra parameters specific to the exchange API endpoint
-        :param str [params.side]: Direction，1 buy，-1 sell，0 all
+        :param str [params.side]: Direction，1 sell，2 buy，0 all
         :param str [params.end]: Closing time, time stamp
         """
         # orders = {
@@ -528,7 +528,7 @@ class allin(Exchange, ImplicitAPI):
         #                 'match_amt': '0',
         #                 'match_qty': '0',
         #                 'match_price': '',
-        #                 'side': -1,
+        #                 'side': 1,
         #                 'order_type': 1,
         #                 'status': 6,
         #                 'create_at': 1574744151836,
@@ -543,7 +543,6 @@ class allin(Exchange, ImplicitAPI):
         market = self.market(symbol)
         request: dict = self.extend(params, {
             'symbol': market['id'],
-            'side': 0,
         })
         paginate = False
         paginate, params = self.handle_option_and_params(params, 'fetchOrders', 'paginate')
@@ -910,7 +909,7 @@ class allin(Exchange, ImplicitAPI):
         timestamp = self.safe_timestamp(trade, 'time')
         symbol = self.safe_string(market, 'symbol')
         sideNumber = self.safe_integer(trade, 'side')
-        side = 'buy' if (sideNumber == 1) else 'sell'
+        side = 'sell' if (sideNumber == 1) else 'buy'
         amount = self.safe_string(trade, 'amount')
         volume = self.safe_string(trade, 'volume')
         return self.safe_trade({
@@ -933,7 +932,7 @@ class allin(Exchange, ImplicitAPI):
         # int order_type, 1 Limit，3 Market
         if type_ == 'LIMIT' or type_ == '1':
             return 'limit'
-        elif type_ == 'MARKET' or type_ == '3':
+        elif type_ == 'MARKET' or type_ == '2':
             return 'market'
         else:
             raise ExchangeError('unknown orderType: ' + self.number_to_string(type_))
@@ -948,16 +947,16 @@ class allin(Exchange, ImplicitAPI):
             raise ExchangeError('unknown orderType: ' + type_)
 
     def parse_order_side(self, side: Int):
-        if side == 1:
+        if side == 2:
             return 'buy'
         else:
             return 'sell'
 
     def to_order_side(self, side: str):
         if side == 'buy':
-            return 1
+            return 2
         else:
-            return -1
+            return 1
 
     def parse_order_status(self, status: Int):
         # Status 2 Outstanding，3 Partial filled，4 all filled，

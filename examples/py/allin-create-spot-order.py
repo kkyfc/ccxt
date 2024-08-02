@@ -22,7 +22,7 @@ async def example():
     exchange.set_sandbox_mode(True)
     await exchange.load_markets()
     exchange.verbose = True  # uncomment for debugging purposes if necessary
-    orders = await exchange.create_order('BTC/USDT', 'limit', 'buy', 0.1, 60000, {})
+    orders = await exchange.create_order('BTC/USDT', 'limit', 'sell', 0.1, 60000, {})
     print(orders)
 
     await exchange.close()
