@@ -542,6 +542,7 @@ class allin(Exchange, ImplicitAPI):
         market = self.market(symbol)
         request: dict = self.extend(params, {
             'symbol': market['id'],
+            'side': 0,
         })
         paginate = False
         paginate, params = self.handle_option_and_params(params, 'fetchOrders', 'paginate')

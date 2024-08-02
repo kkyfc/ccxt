@@ -563,6 +563,7 @@ class allin extends Exchange {
             $market = $this->market($symbol);
             $request = $this->extend($params, array(
                 'symbol' => $market['id'],
+                'side' => 0,
             ));
             $paginate = false;
             list($paginate, $params) = $this->handle_option_and_params($params, 'fetchOrders', 'paginate');

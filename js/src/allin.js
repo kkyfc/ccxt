@@ -554,6 +554,7 @@ export default class allin extends Exchange {
         const market = this.market(symbol);
         const request = this.extend(params, {
             'symbol': market['id'],
+            'side': 0,
         });
         let paginate = false;
         [paginate, params] = this.handleOptionAndParams(params, 'fetchOrders', 'paginate');
