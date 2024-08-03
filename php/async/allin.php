@@ -258,7 +258,7 @@ class allin extends Exchange {
             //                 'quote_precision' => 6,
             //                 'quote_asset_precision' => 8,
             //                 'order_types' => array( 'LIMIT', 'MARKET' ),
-            //                 'order_side' => array( 'buy' => 1, 'sell' => -1 ),
+            //                 'order_side' => array( 'buy' => 2, 'sell' => 1 ),
             //                 'is_spot_trading_allowed' => true,
             //                 'min_order_amount' => '2' ),
             //             array( 'symbol' => 'ETH-USDT',
@@ -270,7 +270,7 @@ class allin extends Exchange {
             //                 'quote_precision' => 6,
             //                 'quote_asset_precision' => 8,
             //                 'order_types' => array( 'LIMIT', 'MARKET' ),
-            //                 'order_side' => array( 'buy' => 1, 'sell' => -1 ),
+            //                 'order_side' => array( 'buy' => 2, 'sell' => 1 ),
             //                 'is_spot_trading_allowed' => true,
             //                 'min_order_amount' => '2' } ),
             //         'timezone' => 'UTC' ),
@@ -304,7 +304,7 @@ class allin extends Exchange {
         //     'quote_asset' => 'BTC',
         //     'quote_precision' => 6,
         //     'order_types' => array( 'LIMIT', 'MARKET' ),
-        //     'order_side' => array( 'buy' => 1, 'sell' => -1 ),
+        //     'order_side' => array( 'buy' => 2, 'sell' => 1 ),
         //     'is_spot_trading_allowed' => true,
         //     'min_order_amount' => '2' );
         $origin_symbol = $this->safe_string($market, 'symbol');
@@ -529,7 +529,7 @@ class allin extends Exchange {
              * @param {int} [$since] Starting time, time stamp
              * @param {int} [$limit] not support
              * @param {array} [$params] extra parameters specific to the exchange API endpoint
-             * @param {string} [$params->side] Direction，1 buy，-1 sell，0 all
+             * @param {string} [$params->side] Direction，1 sell，2 buy，0 all
              * @param {string} [$params->end] Closing time, time stamp
              */
             // $orders = array(
@@ -547,7 +547,7 @@ class allin extends Exchange {
             //                 'match_amt' => '0',
             //                 'match_qty' => '0',
             //                 'match_price' => '',
-            //                 'side' => -1,
+            //                 'side' => 1,
             //                 'order_type' => 1,
             //                 'status' => 6,
             //                 'create_at' => 1574744151836,
@@ -965,7 +965,7 @@ class allin extends Exchange {
         $timestamp = $this->safe_timestamp($trade, 'time');
         $symbol = $this->safe_string($market, 'symbol');
         $sideNumber = $this->safe_integer($trade, 'side');
-        $side = ($sideNumber === 1) ? 'buy' : 'sell';
+        $side = ($sideNumber === 1) ? 'sell' : 'buy';
         $amount = $this->safe_string($trade, 'amount');
         $volume = $this->safe_string($trade, 'volume');
         return $this->safe_trade(array(
@@ -989,7 +989,7 @@ class allin extends Exchange {
         // int order_type, 1 Limit，3 Market
         if ($type_ === 'LIMIT' || $type_ === '1') {
             return 'limit';
-        } elseif ($type_ === 'MARKET' || $type_ === '3') {
+        } elseif ($type_ === 'MARKET' || $type_ === '2') {
             return 'market';
         } else {
             throw new ExchangeError('unknown orderType => ' . $this->number_to_string($type_));
@@ -1008,7 +1008,7 @@ class allin extends Exchange {
     }
 
     public function parse_order_side(?int $side) {
-        if ($side === 1) {
+        if ($side === 2) {
             return 'buy';
         } else {
             return 'sell';
@@ -1017,9 +1017,9 @@ class allin extends Exchange {
 
     public function to_order_side(string $side) {
         if ($side === 'buy') {
-            return 1;
+            return 2;
         } else {
-            return -1;
+            return 1;
         }
     }
 

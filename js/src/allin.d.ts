@@ -32,7 +32,7 @@ export default class allin extends Exchange {
     parseOrderType(type_: Str): "limit" | "market";
     toOrderType(type_: string): "LIMIT" | "MARKET";
     parseOrderSide(side: Int): "buy" | "sell";
-    toOrderSide(side: string): 1 | -1;
+    toOrderSide(side: string): 2 | 1;
     parseOrderStatus(status: Int): string;
     parseOrder(order: Dict, market?: Market): Order;
     handleErrors(statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any): any;

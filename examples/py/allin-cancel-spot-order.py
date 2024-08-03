@@ -22,7 +22,7 @@ async def example():
     exchange.set_sandbox_mode(True)
     await exchange.load_markets()
     exchange.verbose = True  # uncomment for debugging purposes if necessary
-    orders = await exchange.cancel_order('38', 'BTC/USDT', {})
+    orders = await exchange.cancel_order('8381526', 'BTC/USDT', {})
     print(orders)
 
     await exchange.close()
