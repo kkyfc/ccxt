@@ -816,20 +816,32 @@ export default class allin extends Exchange {
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request: Dict = this.extend (params, {
-            'symbol': market['id'],
-            'side': 0,
-        });
+        let request = undefined;
         let paginate = false;
         [ paginate, params ] = this.handleOptionAndParams (params, 'fetchOrders', 'paginate');
         if (paginate) {
             return await this.fetchPaginatedCallDynamic ('fetchOrders', symbol, since, limit, params) as Order[];
         }
-        if (since !== undefined) {
-            request['start'] = since;
+        let response = undefined;
+        if (market['spot']) {
+            request = {
+                'symbol': market['id'],
+                'side': 0,
+            };
+            if (since !== undefined) {
+                request['start'] = since;
+            }
+            response = await this.spotPrivateGetOpenV1Orders (request);
+        } else {
+            request = {
+                'market': market['id'],
+            };
+            if (since !== undefined) {
+                request['start_time'] = since;
+            }
+            response = await this.futurePrivateGetOpenApiV2OrderFinished (request);
         }
-        const response = await this.spotPrivateGetOpenV1Orders (request);
-        const orders = this.safeList (this.safeDict (response, 'data', {}), 'orders');
+        const orders = this.safeList2 (this.safeDict (response, 'data', {}), 'orders', 'records');
         return this.parseOrders (orders, market, since, limit, params);
     }
 
@@ -863,10 +875,19 @@ export default class allin extends Exchange {
         // }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request: Dict = this.extend (params, {
-            'symbol': market['id'],
-        });
-        const response = await this.spotPrivateGetOpenV1OrdersLast (request);
+        let request: Dict = undefined;
+        let response = undefined;
+        if (market['spot']) {
+            request = {
+                'symbol': market['id'],
+            };
+            response = await this.spotPrivateGetOpenV1OrdersLast (request);
+        } else {
+            request = {
+                'market': market['id'],
+            };
+            response = await this.futurePrivateGetOpenApiV2OrderPending (request);
+        }
         const orders = this.safeList (response, 'data');
         return this.parseOrders (orders, market);
     }
@@ -1017,29 +1038,61 @@ export default class allin extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const symbolId = this.safeString (market, 'id');
-        const request: Dict = this.createOrderRequest (
-            symbol,
-            type,
-            side,
-            amount,
-            price,
-            params,
-            market
-        );
-        const response = await this.spotPrivatePostOpenV1OrdersPlace (request);
-        const orderData = this.safeDict (response, 'data');
-        const timestamp = this.safeInteger (response, 'time');  // timestamp in s
+        let response = undefined;
+        let allinOrderSide = undefined;
+        let allinOrderType = undefined;
+        let timestamp = undefined;  // timestamp in s
+        let orderId = undefined;
+        let tradeNo = undefined;
+        if (market['spot']) {
+            const request: Dict = this.createSpotOrderRequest (
+                symbol,
+                type,
+                side,
+                amount,
+                price,
+                params,
+                market
+            );
+            response = await this.spotPrivatePostOpenV1OrdersPlace (request);
+            const orderData = this.safeDict (response, 'data');
+            timestamp = this.safeInteger (response, 'time');  // timestamp in s
+            orderId = this.safeString (orderData, 'order_id');
+            tradeNo = this.safeString (orderData, 'trade_no');
+            allinOrderSide = request['side'];
+            allinOrderType = request['order_type'];
+        } else {
+            const request: Dict = this.createFutureOrderRequest (
+                symbol,
+                type,
+                side,
+                amount,
+                price,
+                params,
+                market
+            );
+            if (type === 'limit') {
+                response = this.futurePrivatePostOpenApiV2OrderLimit (request);
+            } else {
+                response = this.futurePrivatePostOpenApiV2OrderMarket (request);
+            }
+            timestamp = this.safeInteger (response, 'time');  // timestamp in s
+            orderId = this.safeString (response, 'data');
+            tradeNo = undefined;
+            allinOrderSide = this.toOrderSide (side);
+            allinOrderType = this.toFutureOrderType (type);
+        }
         return this.parseOrder ({
-            'order_id': this.safeString (orderData, 'order_id'),
-            'trade_no': this.safeString (orderData, 'trade_no'),
+            'order_id': orderId,
+            'trade_no': tradeNo,
             'symbol': symbolId,
             'price': price,
             'quantity': amount,
             'match_amt': '0',
             'match_qty': '0',
             'match_price': '',
-            'side': request['side'],
-            'order_type': request['order_type'],
+            'side': allinOrderSide,
+            'order_type': allinOrderType,
             'status': 'open',
             'create_at': timestamp,
         }, market);
@@ -1086,8 +1139,8 @@ export default class allin extends Exchange {
         return this.parseOrder (orderData, market);
     }
 
-    createOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
-        const orderType = this.toOrderType (type);
+    createSpotOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
+        const orderType = this.toSpotOrderType (type);
         const orderSide = this.toOrderSide (side);
         const request = {
             'symbol': market['id'],
@@ -1103,6 +1156,17 @@ export default class allin extends Exchange {
             'triggerPrice', 'trailingTriggerPrice',
             'trailingPercent', 'quoteOrderQty' ]);
         return this.extend (request, requestParams);
+    }
+
+    createFutureOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
+        // const orderType = this.toFutureOrderType (type);
+        const orderSide = this.toOrderSide (side);
+        const request = {
+            'market': market['id'],
+            'side': orderSide,
+            'quantity': this.forceString (amount),
+        };
+        return request;
     }
 
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -1317,7 +1381,7 @@ export default class allin extends Exchange {
         }, market);
     }
 
-    parseOrderType (type_: Str) {
+    parseSpotOrderType (type_: Str) {
         // int order_type, 1 Limit，3 Market
         if (type_ === 'LIMIT' || type_ === '1') {
             return 'limit';
@@ -1328,12 +1392,34 @@ export default class allin extends Exchange {
         }
     }
 
-    toOrderType (type_: string) {
+    parseFutureOrderType (type_: Str) {
+        // int order_type, 1 Limit，3 Market
+        if (type_ === 'LIMIT' || type_ === '1') {
+            return 'limit';
+        } else if (type_ === 'MARKET' || type_ === '2') {
+            return 'market';
+        } else {
+            throw new ExchangeError ('unknown orderType: ' + this.numberToString (type_));
+        }
+    }
+
+    toSpotOrderType (type_: string) {
         // ccxt orderType to allin orderType
         if (type_ === 'limit') {
             return 'LIMIT';
         } else if (type_ === 'market') {
             return 'MARKET';
+        } else {
+            throw new ExchangeError ('unknown orderType: ' + type_);
+        }
+    }
+
+    toFutureOrderType (type_: string) {
+        // ccxt orderType to allin orderType
+        if (type_ === 'limit') {
+            return 1;
+        } else if (type_ === 'market') {
+            return 2;
         } else {
             throw new ExchangeError ('unknown orderType: ' + type_);
         }
@@ -1355,7 +1441,7 @@ export default class allin extends Exchange {
         }
     }
 
-    parseOrderStatus (status: Int) {
+    parseSpotOrderStatus (status: Int) {
         // Status 2 Outstanding，3 Partial filled，4 all filled，
         // 5 cancel after partial filled，
         const statusStr = this.numberToString (status);
@@ -1364,8 +1450,27 @@ export default class allin extends Exchange {
             '2': 'open',        // 2 Outstanding
             '3': 'open',        // 3 Partial filled
             '4': 'closed',      // 4 all filled
-            '5': 'canceled',    // 5 canceled after partial filled
+            '5': 'closed',    // 5 canceled after partial filled
             '6': 'canceled',    // 6 all cancel
+        };
+        return this.safeString (statusDict, statusStr);
+    }
+
+    parseFutureOrderStatus (status: Int) {
+        // const (
+        //     OrderStatusPending         OrderStatus = 1
+        //     OrderStatusPartial         OrderStatus = 2
+        //     OrderStatusFilled          OrderStatus = 3
+        //     OrderStatusPartialCanceled OrderStatus = 4
+        //     OrderStatusCanceled        OrderStatus = 5
+        //   )
+        const statusStr = this.numberToString (status);
+        const statusDict = {
+            '1': 'open',        // 1 Pending
+            '2': 'open',        // 2 Partial filled
+            '3': 'closed',      // 3 all filled
+            '4': 'closed',      // 4 canceled after partial filled
+            '5': 'canceled',    // 5 all cancel
         };
         return this.safeString (statusDict, statusStr);
     }
@@ -1409,34 +1514,70 @@ export default class allin extends Exchange {
         //             'time': 1574922846833
         //             }]
         //     }
+        // future
+        // const futureOrder = {
+        //     'code': 0,
+        //     'msg': 'success',
+        //     'data': {
+        //         'order_id': 1470445037,
+        //         'position_id': 0,
+        //         'market': 'ETHUSDT',
+        //         'type': 2,
+        //         'side': 1,
+        //         'left': '0',
+        //         'amount': '1',
+        //         'filled': '1',
+        //         'deal_fee': '0.7869',
+        //         'price': '0',
+        //         'avg_price': '1573.84',
+        //         'deal_stock': '1573.84',
+        //         'position_type': 1,
+        //         'leverage': '20',
+        //         'update_time': 1697616547.90107,
+        //         'create_time': 1697616547.901067,
+        //         'status': 3,
+        //         'stop_loss_price': '-',
+        //         'take_profit_price': '-',
+        //         'client_oid': '36341ddd362363263626',
+        //     },
+        // };
         const timestamp = this.safeTimestamp2 (order, 'create_at', 'create_time');
+        let updateAt = timestamp;
+        let type_ = undefined;
         const symbol = this.safeString2 (market, 'symbol', 'market');
-        const type_ = this.parseOrderType (this.safeString (order, 'order_type'));
         const side = this.parseOrderSide (this.safeInteger (order, 'side'));
         const price = this.safeString (order, 'price');
-        const amount = this.safeString (order, 'quantity');
-        const status = this.parseOrderStatus (this.safeInteger (order, 'status'));
-        const average = this.safeString (order, 'match_price');
-        const filled = this.safeString (order, 'match_qty', '0');
-        const cost = this.safeString (order, 'match_amt', '0');
-        const feeCost = this.safeString (order, 'fee', undefined);
+        const amount = this.safeString2 (order, 'quantity', 'amount');
+        const average = this.safeString2 (order, 'match_price', 'avg_price');
+        const filled = this.safeString2 (order, 'match_qty', 'filled', '0');
+        const cost = this.safeString2 (order, 'match_amt', 'deal_stock', '0');
+        const feeCost = this.safeString2 (order, 'fee', 'deal_fee', undefined);
         let fee = undefined;
         if (feeCost !== undefined) {
             fee = {
-                'currency': this.safeString (order, 'quoteAsset'),
+                'currency': undefined,
                 'cost': feeCost,
                 'rate': undefined,
             };
         }
         const trades = this.safeList (order, 'trades', []);
+        let status = undefined;
+        if (market['spot']) {
+            type_ = this.parseSpotOrderType (this.safeString (order, 'order_type'));
+            status = this.parseSpotOrderStatus (this.safeInteger (order, 'status'));
+        } else {
+            status = this.parseFutureOrderStatus (this.safeInteger (order, 'status'));
+            updateAt = this.safeTimestamp (order, 'update_time', timestamp);
+            type_ = this.parseSpotOrderType (this.safeString (order, 'type'));
+        }
         return this.safeOrder ({
             'info': order,
             'id': this.safeString (order, 'order_id'),
             'clientOrderId': undefined,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': undefined,
-            'lastUpdateTimestamp': undefined,
+            'lastTradeTimestamp': updateAt,
+            'lastUpdateTimestamp': updateAt,
             'symbol': symbol,
             'type': type_,
             'timeInForce': undefined,
