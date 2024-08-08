@@ -2,7 +2,7 @@
 // ----------------------------------------------------------------------------
 
 import allinRest from '../allin.js';
-import { ArgumentsRequired, AuthenticationError } from '../base/errors.js';
+import { ArgumentsRequired, AuthenticationError, BaseError } from '../base/errors.js';
 import { ArrayCacheByTimestamp, ArrayCacheBySymbolBySide } from '../base/ws/Cache.js';
 import type { Int, Str, OrderBook, Balances, Order, OHLCV, Dict, Ticker, Tickers, Position } from '../base/types.js';
 import Client from '../base/ws/Client.js';
@@ -29,7 +29,7 @@ export default class allin extends allinRest {
                 'watchOrders': true,
                 'watchOrdersForSymbols': false,
                 'watchPositions': false,
-                'watchTicker': false,
+                'watchTicker': true,
                 'watchTickers': false,
                 'watchTrades': true,
                 'watchTradesForSymbols': false,
@@ -229,8 +229,9 @@ export default class allin extends allinRest {
         }
         await this.loadMarkets ();
         if (currentType === 'future' || currentType === 'swap') {
-            const messageHash = 'positions';
+            const messageHash = 'update.position';
             const url = this.urls['api']['ws'][currentType];
+            await this.authenticate (url);
             const request = {
                 'method': 'subscribe.position',
                 'id': this.requestId (),
@@ -239,7 +240,7 @@ export default class allin extends allinRest {
             const positions = await this.watch (url, messageHash, request, messageHash);
             return positions;
         } else {
-            throw new Error (currentType + 'market type no position');
+            throw new BaseError (currentType + 'market type no position');
         }
     }
 
@@ -273,11 +274,20 @@ export default class allin extends allinRest {
         }
         const url = this.urls['api']['ws'][type_];
         await this.authenticate (url);
-        const request = {
-            'method': 'subscribe.orders',
-            'params': {},
-            'id': this.requestId (),
-        };
+        let request = undefined;
+        if (type_ === 'spot') {
+            request = {
+                'method': 'subscribe.orders',
+                'params': {},
+                'id': this.requestId (),
+            };
+        } else {
+            request = {
+                'method': 'subscribe.order',
+                'params': {},
+                'id': this.requestId (),
+            };
+        }
         if (marketId !== undefined) {
             request['params']['market'] = marketId;
         }
@@ -331,23 +341,20 @@ export default class allin extends allinRest {
         const client = this.client (url);
         const future = client.future (messageHash);
         const authenticated = this.safeValue (client.subscriptions, messageHash);
-        let result = {};
+        let request = {};
         if (authenticated === undefined) {
             const nonce = this.nonce ().toString ();
             const ts = nonce;
             const client_id = this.apiKey;
             const s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts;
             const v = this.hmac (this.encode (s), this.encode (this.secret), sha256);
-            result = { 'method': 'sign',
+            request = { 'method': 'sign',
                 'id': this.requestId (),
                 'params': { 'client_id': client_id,
                     'ts': ts,
                     'nonce': nonce,
                     'sign': v }};
-            if (currentType === 'future' || currentType === 'swap') {
-                result['method'] = 'subscribe.sign';
-            }
-            this.watch (url, messageHash, result, messageHash);
+            this.watch (url, messageHash, request, messageHash);
         }
         return await future;
     }
@@ -470,16 +477,61 @@ export default class allin extends allinRest {
         //         'market': 'BTC-USDT',
         //     },
         // };
+        // future
+        // {
+        //     "id":0,
+        //     "method":"update.state",
+        //     "result": {
+        //       "1000SHIBUSDT": {
+        //         "market": "1000SHIBUSDT",
+        //         "amount": "35226256.573504",
+        //         "high":"0.009001",
+        //         "last": "0.008607",
+        //         "low": "0.008324",
+        //         "open": "0.008864",
+        //         "period": 86400,
+        //         "volume":"4036517772",
+        //         "change": "-0.0289936823104693",
+        //         "funding_time": 79,
+        //         "position_amount": "0",
+        //         "funding_rate_last": "0.00092889",
+        //         "funding_rate_next":"0.00078062",
+        //         "funding_rate_predict": "0.00059084",
+        //         "insurance": "12920.37897885999447286856",
+        //         "sign_price": "0.008607",
+        //         "index_price": "0.008606",
+        //         "sell_total":"46470921",
+        //         "buy_total": "43420303"
+        //       }
+        //     },
+        //     "error":null
+        //   }
         const result = this.safeDict (message, 'result');
         const tickerData = this.safeDict (result, 'data');
-        const symbolId = this.safeString (tickerData, 'symbol');
-        const market = this.safeMarket (symbolId, undefined, undefined);
-        tickerData['timestamp'] = this.safeTimestamp (tickerData, 'timestamp');
-        const symbol = market['symbol'];
-        const messageHash = 'update.quote:' + symbolId;
-        const ticker = this.parseTicker (tickerData, market);
-        this.tickers[symbol] = ticker;
-        client.resolve (ticker, messageHash);
+        if (tickerData === undefined) {
+            // future
+            const keys = Object.keys (result);
+            for (let i = 0; i < keys.length; i++) {
+                const symbolId = keys[i];
+                const messageHash = 'update.quote:' + symbolId;
+                const market = this.safeMarket (symbolId);
+                const symbol = market['symbol'];
+                const data = result[symbolId];
+                const ticker = this.parseTicker (data, market);
+                this.tickers[symbol] = ticker;
+                client.resolve (ticker, messageHash);
+            }
+        } else {
+            // spot
+            const symbolId = this.safeString (tickerData, 'symbol');
+            const market = this.safeMarket (symbolId, undefined, undefined);
+            tickerData['timestamp'] = this.safeTimestamp (tickerData, 'timestamp');
+            const symbol = market['symbol'];
+            const messageHash = 'update.quote:' + symbolId;
+            const ticker = this.parseTicker (tickerData, market);
+            this.tickers[symbol] = ticker;
+            client.resolve (ticker, messageHash);
+        }
     }
 
     handleTickers (client: Client, message) {
@@ -624,51 +676,41 @@ export default class allin extends allinRest {
         //     },
         //     'error': null,
         // };
+        // future
+        // const futureOrder = { 'id': 0,
+        //     'method': 'update.order',
+        //     'result': { 'order_id': 5034339,
+        //         'position_id': 0,
+        //         'market': 'BTCUSDT',
+        //         'type': 1,
+        //         'side': 1,
+        //         'left': '0.0000',
+        //         'amount': '0.0400',
+        //         'filled': '0.04',
+        //         'deal_fee': '0.9583',
+        //         'price': '56000',
+        //         'avg_price': '59898.36',
+        //         'deal_stock': '2395.9344',
+        //         'position_type': 2,
+        //         'leverage': '100',
+        //         'update_time': 1723131121.719404,
+        //         'create_time': 1723131121.719389,
+        //         'status': 3,
+        //         'stop_loss_price': '-',
+        //         'take_profit_price': '-' },
+        //     'error': None };
         const result = this.safeDict (message, 'result');
-        const timestamp = this.safeTimestamp (result, 'timestamp');
-        const allinOrderStatus = this.safeInteger (result, 'status');
-        const allinSymbol = this.safeString (result, 'symbol');
+        const allinSymbol = this.safeString2 (result, 'symbol', 'market');
         const market = this.safeMarket (allinSymbol);
         if (!market) {
             return;
         }
-        const allinOrderType = this.forceString (this.safeInteger (result, 'order_type'));
-        const allinOrderSide = this.safeInteger (result, 'side');
-        let messageHash = this.safeString (result, 'topic', undefined);
+        const order = this.parseOrder (result, market);
         let messageHashAll = undefined;
+        const messageHash = 'orders:' + market['id'];
         if (market['spot']) {
-            messageHash = 'orders:' + market['id'];
             messageHashAll = 'orders:__ALL__';
         }
-        const cost = this.safeString (result, 'match_amt', '0');
-        const order = {
-            'id': this.safeString (result, 'order_id'),
-            'clientOrderId': this.safeString (result, 'trade_no'),
-            'datetime': this.iso8601 (timestamp),
-            'timestamp': timestamp,
-            'lastTradeTimestamp': timestamp,
-            'lastUpdateTimestamp': timestamp,
-            'status': this.parseSpotOrderStatus (allinOrderStatus),
-            'symbol': market['symbol'],
-            'type': this.parseOrderType (allinOrderType),
-            'timeInForce': undefined,
-            'side': this.parseOrderSide (allinOrderSide),
-            'price': this.safeFloat (result, 'price'),
-            'average': this.safeFloat (result, 'match_price'),
-            'amount': this.safeFloat (result, 'quantity'),
-            'filled': this.safeFloat (result, 'match_qty'),
-            'remaining': this.safeFloat (result, 'left'),
-            'stopPrice': undefined,
-            'triggerPrice': undefined,
-            'takeProfitPrice': undefined,
-            'stopLossPrice': undefined,
-            'cost': cost,
-            'trades': [],
-            'fee': undefined,
-            'reduceOnly': undefined,
-            'postOnly': undefined,
-            'info': result,
-        };
         const safeOrder = this.safeOrder (order, market);
         client.resolve ([ safeOrder ], messageHash);
         if (messageHashAll) {
@@ -689,24 +731,61 @@ export default class allin extends allinRest {
         //         "total": "1000000"
         //     } //结果集
         // }
+        // future
+        // {
+        //     "id":0,
+        //     "method":"update.asset",
+        //     "result":{
+        //       "USDT":{
+        //         "available":"10320.9887",
+        //         "frozen":"0",
+        //         "margin":"16.1356",
+        //         "balance_total":"10320.9887",
+        //         "profit_unreal":"11.0315",
+        //         "transfer":"10097.1501",
+        //         "bonus":"223.8386"
+        //       }
+        //     },
+        //     "error":null
+        //   }
+        const currentType = this.safeString (this.options, 'defaultType', undefined);
         const messageHash = 'update.asset';
-        const result = this.safeDict (message, 'result');
-        const token = this.safeString (result, 'symbol');
         if (this.balance === undefined) {
             this.balance = {};
         }
         if (!this.safeDict (this.balance, 'info')) {
             this.balance['info'] = {};
         }
-        this.balance['info'][token] = result;
-        const timestamp = this.milliseconds ();
-        this.balance['timestamp'] = timestamp;
-        this.balance['datetime'] = this.iso8601 (timestamp);
-        this.balance[token] = {
-            'free': this.safeString (result, 'available'),
-            'total': this.safeString (result, 'total'),
-            'used': this.safeString (result, 'freeze'),
-        };
+        if (currentType === 'spot') {
+            const result = this.safeDict (message, 'result');
+            const token = this.safeString (result, 'symbol');
+            this.balance['info'][token] = result;
+            const timestamp = this.milliseconds ();
+            this.balance['timestamp'] = timestamp;
+            this.balance['datetime'] = this.iso8601 (timestamp);
+            this.balance[token] = {
+                'free': this.safeString (result, 'available'),
+                'total': this.safeString (result, 'total'),
+                'used': this.safeString (result, 'freeze'),
+            };
+        } else {
+            const originBalances = this.safeDict (message, 'result');
+            const keys = Object.keys (originBalances);
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                const originBalance = originBalances[key];
+                const symbol = key;
+                const used = this.safeString (originBalance, 'frozen');
+                const total = this.safeString (originBalance, 'balance_total');
+                const free = this.safeString (originBalance, 'available');
+                this.balance[symbol] = {
+                    'free': free,
+                    'used': used,
+                    'total': total,
+                    'debt': 0, // ???
+                };
+            }
+        }
         this.balance = this.safeBalance (this.balance);
         client.resolve (this.balance, messageHash);
     }
@@ -744,16 +823,16 @@ export default class allin extends allinRest {
         //     },
         //     "error":null
         //   }
-        const data = this.safeDict (message, 'result');
+        const result = this.safeDict (message, 'result');
+        const data = this.safeDict (result, 'position');
         const marketId = data['market'];
         const market = this.safeMarket (marketId);
-        const messageHash = 'positions';
+        const messageHash = 'update.position';
         if (this.positions === undefined) {
             this.positions = new ArrayCacheBySymbolBySide ();
         }
         const cache = this.positions;
-        const newPosition = this.safeDict (message, 'result', {});
-        const position = this.parsePosition (newPosition, market);
+        const position = this.parsePosition (data, market);
         cache.append (position);
         client.resolve ([ position ], messageHash);
     }
@@ -814,7 +893,7 @@ export default class allin extends allinRest {
         // }
         const error = message['error'];
         if (error) {
-            let code = this.safeString (error, 'code', undefined);
+            let code = this.safeString (error, 'code', 'default');
             let errorStr = undefined;
             if (code !== undefined) {
                 errorStr = this.safeString (error, 'msg');
@@ -839,11 +918,13 @@ export default class allin extends allinRest {
             'update.depth': this.handleOrderBook,
             'update.kline': this.handleOHLCV,
             'update.orders': this.handleOrder,
+            'update.order': this.handleOrder,
             'update.asset': this.handleBalance,
             'ping': this.handlePong,
             'sign': this.handleAuthenticate,
             'update.quote': this.handleTicker,
             'update.quotes': this.handleTickers,
+            'update.position': this.handlePositions,
         };
         const methodStr = this.safeString (message, 'method');
         const method = this.safeValue (methodsDict, methodStr);

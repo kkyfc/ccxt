@@ -275,7 +275,9 @@ export default class allin extends Exchange {
                     '1010406': BadRequest,          // Depth position error
                     '1010005': BadRequest,          // data is empty
                     '1010364': BadRequest,          // symbol count cannot be more than 10
-                    ' ': BaseError,
+                    'default': BaseError,
+                    // future
+                    '20015': ExchangeError,
                 },
             },
         });
@@ -1334,20 +1336,48 @@ export default class allin extends Exchange {
         //     'change': '0',
         //     'price': '68000',
         //     'l_price': '68000' };
-        const marketId = this.safeString (ticker, 'symbol');
+        // future
+        // {
+        //         "market": "1000SHIBUSDT",
+        //         "amount": "35226256.573504",
+        //         "high":"0.009001",
+        //         "last": "0.008607",
+        //         "low": "0.008324",
+        //         "open": "0.008864",
+        //         "period": 86400,
+        //         "volume":"4036517772",
+        //         "change": "-0.0289936823104693",
+        //         "funding_time": 79,
+        //         "position_amount": "0",
+        //         "funding_rate_last": "0.00092889",
+        //         "funding_rate_next":"0.00078062",
+        //         "funding_rate_predict": "0.00059084",
+        //         "insurance": "12920.37897885999447286856",
+        //         "sign_price": "0.008607",
+        //         "index_price": "0.008606",
+        //         "sell_total":"46470921",
+        //         "buy_total": "43420303"
+        //       }
+        const marketId = this.safeString2 (ticker, 'symbol', 'markt');
         const symbol = this.safeSymbol (marketId, market, undefined);
-        const last = this.safeString (ticker, 'price');
+        const last = this.safeString2 (ticker, 'price', 'last');
         const baseVolume = this.safeString (ticker, 'volume'); // 数量
         const quoteVolume = this.safeString (ticker, 'amount'); // 金额
-        const timestamp = this.safeInteger (ticker, 'timestamp');
+        let timestamp = this.safeInteger (ticker, 'timestamp');
+        const open_ = this.safeNumber (ticker, 'open');
+        const high = this.safeNumber (ticker, 'high');
+        const low = this.safeNumber (ticker, 'low');
+        if (timestamp !== undefined) {
+            timestamp = this.milliseconds ();
+        }
         return this.safeTicker ({
             'symbol': symbol,
             'info': ticker,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'open': undefined,
-            'high': this.safeString (ticker, 'high'),
-            'low': this.safeString (ticker, 'low'),
+            'open': open_,
+            'high': high,
+            'low': low,
             'close': last,
             'bid': undefined,
             'bidVolume': undefined,
