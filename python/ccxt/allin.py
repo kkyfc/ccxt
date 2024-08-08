@@ -869,14 +869,14 @@ class allin(Exchange, ImplicitAPI):
         return self.safe_balance(balances)
 
     def parse_ohlcv(self, ohlcv: Any, market: Market) -> list:
-        # klines = [{'time': 1720072680,
+        # klines = [{'timestamp': 1720072680,
         #     'open': '68000.00',
         #     'close': '68000.00',
         #     'high': '68000.00',
         #     'low': '68000.00',
         #     'volume': '0',
         #     'amount': '0'},
-        # {'time': 1720072740,
+        # {'timestamp': 1720072740,
         #     'open': '68000.00',
         #     'close': '68000.00',
         #     'high': '68000.00',
@@ -885,7 +885,7 @@ class allin(Exchange, ImplicitAPI):
         #     'amount': '0'},
         # ]
         return [
-            self.safe_timestamp(ohlcv, 'time'),
+            self.safe_timestamp(ohlcv, 'timestamp'),
             self.safe_integer(ohlcv, 'open'),
             self.safe_integer(ohlcv, 'high'),
             self.safe_integer(ohlcv, 'low'),

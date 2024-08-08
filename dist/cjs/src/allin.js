@@ -878,14 +878,14 @@ class allin extends allin$1 {
         return this.safeBalance(balances);
     }
     parseOHLCV(ohlcv, market) {
-        // const klines = [ { 'time': 1720072680,
+        // const klines = [ { 'timestamp': 1720072680,
         //     'open': '68000.00',
         //     'close': '68000.00',
         //     'high': '68000.00',
         //     'low': '68000.00',
         //     'volume': '0',
         //     'amount': '0' },
-        // { 'time': 1720072740,
+        // { 'timestamp': 1720072740,
         //     'open': '68000.00',
         //     'close': '68000.00',
         //     'high': '68000.00',
@@ -894,7 +894,7 @@ class allin extends allin$1 {
         //     'amount': '0' },
         // ];
         return [
-            this.safeTimestamp(ohlcv, 'time'),
+            this.safeTimestamp(ohlcv, 'timestamp'),
             this.safeInteger(ohlcv, 'open'),
             this.safeInteger(ohlcv, 'high'),
             this.safeInteger(ohlcv, 'low'),

@@ -895,14 +895,14 @@ class allin extends Exchange {
     }
 
     public function parse_ohlcv(mixed $ohlcv, ?array $market): array {
-        // $klines = array( array( 'time' => 1720072680,
+        // $klines = array( array( 'timestamp' => 1720072680,
         //     'open' => '68000.00',
         //     'close' => '68000.00',
         //     'high' => '68000.00',
         //     'low' => '68000.00',
         //     'volume' => '0',
         //     'amount' => '0' ),
-        // array( 'time' => 1720072740,
+        // array( 'timestamp' => 1720072740,
         //     'open' => '68000.00',
         //     'close' => '68000.00',
         //     'high' => '68000.00',
@@ -911,7 +911,7 @@ class allin extends Exchange {
         //     'amount' => '0' ),
         // );
         return array(
-            $this->safe_timestamp($ohlcv, 'time'),
+            $this->safe_timestamp($ohlcv, 'timestamp'),
             $this->safe_integer($ohlcv, 'open'),
             $this->safe_integer($ohlcv, 'high'),
             $this->safe_integer($ohlcv, 'low'),
