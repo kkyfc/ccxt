@@ -1437,14 +1437,14 @@ export default class allin extends Exchange {
     }
 
     parseOHLCV (ohlcv: any, market?: Market): OHLCV {
-        // const klines = [ { 'time': 1720072680,
+        // const klines = [ { 'timestamp': 1720072680,
         //     'open': '68000.00',
         //     'close': '68000.00',
         //     'high': '68000.00',
         //     'low': '68000.00',
         //     'volume': '0',
         //     'amount': '0' },
-        // { 'time': 1720072740,
+        // { 'timestamp': 1720072740,
         //     'open': '68000.00',
         //     'close': '68000.00',
         //     'high': '68000.00',
@@ -1456,7 +1456,7 @@ export default class allin extends Exchange {
         // open close high low
         // [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
-            this.safeTimestamp2 (ohlcv, 'time', 0),
+            this.safeTimestamp2 (ohlcv, 'timestamp', 0),
             this.safeInteger2 (ohlcv, 'open', 1),
             this.safeInteger2 (ohlcv, 'high', 3),
             this.safeInteger2 (ohlcv, 'low', 4),
