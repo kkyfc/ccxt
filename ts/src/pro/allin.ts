@@ -2,9 +2,9 @@
 // ----------------------------------------------------------------------------
 
 import allinRest from '../allin.js';
-import { ArgumentsRequired, AuthenticationError, ExchangeError } from '../base/errors.js';
-import { ArrayCacheByTimestamp } from '../base/ws/Cache.js';
-import type { Int, Str, OrderBook, Balances, Order, OHLCV, Dict, Ticker, Tickers } from '../base/types.js';
+import { ArgumentsRequired, AuthenticationError } from '../base/errors.js';
+import { ArrayCacheByTimestamp, ArrayCacheBySymbolBySide } from '../base/ws/Cache.js';
+import type { Int, Str, OrderBook, Balances, Order, OHLCV, Dict, Ticker, Tickers, Position } from '../base/types.js';
 import Client from '../base/ws/Client.js';
 import { sha256 } from '../static_dependencies/noble-hashes/sha256.js';
 
@@ -38,17 +38,15 @@ export default class allin extends allinRest {
                 'test': {
                     'ws': {
                         'spot': 'wss://ws.allintest.pro/ws',
-                        'futures': 'wss://ws.allintest.pro/ws',
-                        'public': 'wss://ws.allintest.pro/ws',
-                        'private': 'wss://ws.allintest.pro/ws',
+                        'future': 'wss://api.allintest.pro/futures/wsf',
+                        'swap': 'wss://api.allintest.pro/futures/wsf',
                     },
                 },
                 'api': {
                     'ws': {
                         'spot': 'wss://ws.allintest.pro/ws',
-                        'futures': 'wss://ws.allintest.pro/ws',
-                        'public': 'wss://ws.allintest.pro/ws',
-                        'private': 'wss://ws.allintest.pro/ws',
+                        'future': 'wss://api.allintest.pro/futures/wsf',
+                        'swap': 'wss://api.allintest.pro/futures/wsf',
                     },
                 },
                 'doc': 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',
@@ -96,18 +94,33 @@ export default class allin extends allinRest {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const marketId = market['id'];
-        const type_ = 'spot';
+        let type_ = undefined;
+        let request = undefined;
+        let merge = undefined;
+        if (market['spot']) {
+            type_ = 'spot';
+            merge = 'step0';
+            request = {
+                'method': 'subscribe.depth',
+                'params': {
+                    'market': marketId,
+                    'merge': merge,
+                },
+            };
+        } else {
+            merge = '0';
+            type_ = 'future';
+            request = {
+                'method': 'subscribe.depth',
+                'params': {
+                    'market': marketId,
+                    'merge': merge,
+                },
+            };
+        }
         const url = this.urls['api']['ws'][type_];
         const reqId = this.requestId ();
-        const merge = 'step0';
-        const request = {
-            'method': 'subscribe.depth',
-            'params': {
-                'market': marketId,
-                'merge': merge,
-            },
-        };
-        const messageHash = 'depth:' + merge + ':' + marketId;  // 'topic': 'depth:step1:BTC-USDT'
+        const messageHash = 'depth:' + ':' + marketId;  // 'topic': 'depth:step1:BTC-USDT'
         request['id'] = reqId;
         const orderbook = await this.watch (url, messageHash, request, messageHash, true);
         return orderbook.limit ();
@@ -193,8 +206,11 @@ export default class allin extends allinRest {
          * @see https://allinexchange.github.io/spot-docs/v1/en/#subscription-topic
          */
         await this.loadMarkets ();
-        const type_ = 'spot';
-        const url = this.urls['api']['ws'][type_];
+        let currentType = this.safeString (params, 'defaultType', undefined);
+        if (!currentType) {
+            currentType = this.options['defaultType'];
+        }
+        const url = this.urls['api']['ws'][currentType];
         await this.authenticate (url);
         const messageHash = 'update.asset';
         const request = {
@@ -204,6 +220,27 @@ export default class allin extends allinRest {
         };
         const balances = await this.watch (url, messageHash, request, messageHash);
         return balances;
+    }
+
+    async watchPositions (symbols: string[] = undefined, since: Int = undefined, limit: Int = undefined, params = {}): Promise<Position[]> {
+        let currentType = this.safeString (params, 'defaultType', undefined);
+        if (!currentType) {
+            currentType = this.options['defaultType'];
+        }
+        await this.loadMarkets ();
+        if (currentType === 'future' || currentType === 'swap') {
+            const messageHash = 'positions';
+            const url = this.urls['api']['ws'][currentType];
+            const request = {
+                'method': 'subscribe.position',
+                'id': this.requestId (),
+                'params': {},
+            };
+            const positions = await this.watch (url, messageHash, request, messageHash);
+            return positions;
+        } else {
+            throw new Error (currentType + 'market type no position');
+        }
     }
 
     async watchOrders (symbol: Str = undefined, since: Int = undefined, limit: Int = undefined, params = {}): Promise<Order[]> {
@@ -218,23 +255,32 @@ export default class allin extends allinRest {
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          * @returns {object[]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
          */
-        if (symbol === undefined) {
+        const currentType = this.safeString (params, 'defaultType', undefined);
+        let type_ = undefined;
+        let marketId = undefined;
+        let messageHash = undefined;
+        if (symbol === undefined && currentType === 'spot') {
             throw new ArgumentsRequired (this.id + ' watchOrderBook() requires a symbol argument');
+        } else if (symbol !== undefined) {
+            await this.loadMarkets ();
+            const market = this.market (symbol);
+            marketId = market['id'];
+            type_ = market['type'];
+            messageHash = 'orders:' + marketId;
+        } else {
+            type_ = currentType;
+            messageHash = 'orders:__ALL__';
         }
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const marketId = market['id'];
-        const messageHash = 'orders:' + marketId;
-        const type_ = 'spot';
         const url = this.urls['api']['ws'][type_];
         await this.authenticate (url);
         const request = {
             'method': 'subscribe.orders',
-            'params': {
-                'market': marketId,
-            },
+            'params': {},
             'id': this.requestId (),
         };
+        if (marketId !== undefined) {
+            request['params']['market'] = marketId;
+        }
         const orders = await this.watch (url, messageHash, request, messageHash, true);
         return orders;
     }
@@ -255,10 +301,13 @@ export default class allin extends allinRest {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const marketId = market['id'];
-        const type_ = 'spot';
-        const interval = this.safeString (this.timeframes, timeframe, timeframe);
+        const type_ = market['type'];
+        let interval = this.safeString (this.timeframes, timeframe, timeframe);
         const url = this.urls['api']['ws'][type_];
         const reqId = this.requestId ();
+        if (!market['spot']) {
+            interval = String (interval).toLowerCase ();
+        }
         const messageHash = 'kline:' + interval + ':' + marketId;
         const request = {
             'method': 'subscribe.kline',
@@ -275,6 +324,10 @@ export default class allin extends allinRest {
     async authenticate (url, params = {}) {
         this.checkRequiredCredentials ();
         const messageHash = 'sign';
+        let currentType = this.safeString (params, 'defaultType', undefined);
+        if (!currentType) {
+            currentType = this.options['defaultType'];
+        }
         const client = this.client (url);
         const future = client.future (messageHash);
         const authenticated = this.safeValue (client.subscriptions, messageHash);
@@ -291,6 +344,9 @@ export default class allin extends allinRest {
                     'ts': ts,
                     'nonce': nonce,
                     'sign': v }};
+            if (currentType === 'future' || currentType === 'swap') {
+                result['method'] = 'subscribe.sign';
+            }
             this.watch (url, messageHash, result, messageHash);
         }
         return await future;
@@ -302,38 +358,72 @@ export default class allin extends allinRest {
         //     'result': { 'data':
         //         { 'asks': [ { 'price': '68000.0', 'quantity': '0.357100' },
         //             { 'price': '68123.5', 'quantity': '0.230000' } ],
-        //         'bids': [ { 'price': '67890.9', 'quantity': '0.002000' },
+        //            'bids': [ { 'price': '67890.9', 'quantity': '0.002000' },
         //             { 'price': '67890.4', 'quantity': '0.001000' },
         //             { 'price': '65000.2', 'quantity': '0.300000' },
         //             { 'price': '62000.0', 'quantity': '1.999000' },
         //             { 'price': '60000.0', 'quantity': '1.100000' },
         //             { 'price': '8850.2', 'quantity': '0.200000' } ],
-        //         'symbol': 'BTC-USDT',
-        //         'timestamp': 1721550307627,
-        //         'topic': 'depth:step1:BTC-USDT',
-        //         'tpp': 7 },
-        //     'merge': 'step1' },
+        //              'symbol': 'BTC-USDT',
+        //              'timestamp': 1721550307627,
+        //              'topic': 'depth:step1:BTC-USDT',
+        //              'tpp': 7 },
+        //          'merge': 'step1' },
         //     'error': null };
+        // future
+        // {
+        //     "id":0,
+        //     "method":"update.depth",
+        //     "result":{
+        //       "asks":[
+        //         [
+        //           "36341.6",
+        //           "0.0444"
+        //         ]
+        //       ],
+        //       "bids":[
+        //         [
+        //           "36341.25",
+        //           "0.0511"
+        //         ]
+        //       ],
+        //       "index_price":"36612.36",
+        //       "last":"36341.59",
+        //       "market":"BTCUSDT",
+        //       "sign_price":"36589.76",
+        //       "time":1699944061967
+        //     },
+        //     "error":null
+        //   }
         const result = this.safeDict (message, 'result');
-        const abData = this.safeDict (result, 'data');
-        const marketId = this.safeString (abData, 'symbol');
+        let marketId = this.safeString (result, 'market', undefined);
+        let timestamp = undefined;
+        let abData = undefined;
+        if (marketId === undefined) {
+            // spot
+            abData = this.safeDict (result, 'data');
+            marketId = this.safeString (abData, 'symbol');
+            timestamp = this.safeInteger (abData, 'timestamp');
+        } else {
+            // future
+            abData = result;
+            marketId = this.safeString (abData, 'market');
+            timestamp = this.safeInteger (abData, 'time');
+        }
         const market = this.safeMarket (marketId, undefined, undefined);
-        const timestamp = this.safeInteger (abData, 'timestamp');
-        const messageHash = this.safeString (abData, 'topic');
+        const messageHash = 'depth:' + ':' + marketId;
         const symbol = market['symbol'];
         if (!(symbol in this.orderbooks)) {
             this.orderbooks[symbol] = this.orderBook ();
             this.orderbooks[symbol]['symbol'] = symbol;
         }
         const orderbook = this.orderbooks[symbol];
-        // const asks = this.safeList (abData, 'asks', []);
-        // const bids = this.safeList (abData, 'bids', []);
-        // this.handleDeltas (orderbook['asks'], asks);
-        // this.handleDeltas (orderbook['bids'], bids);
-        // orderbook['timestamp'] = timestamp;
-        // orderbook['datetime'] = this.iso8601 (timestamp);
-        // this.orderbooks[symbol] = orderbook;
-        const snapshot = this.parseOrderBook (abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+        let snapshot = undefined;
+        if (market['spot']) {
+            snapshot = this.parseOrderBook (abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+        } else {
+            snapshot = this.parseOrderBook (abData, symbol, timestamp, 'bids', 'asks', 0, 1);
+        }
         orderbook.reset (snapshot);
         this.orderbooks[symbol] = orderbook;
         client.resolve (orderbook, messageHash);
@@ -452,18 +542,41 @@ export default class allin extends allinRest {
         //         'period': '1Min',
         //     }, // 结果集
         // };
+        // future
+        // const future = { 'id': 0,
+        //     'method':
+        //     'update.kline',
+        //     'result': { 'data': [ [ 1723034940, '65517.74', '65517.74', '65517.74', '65517.74', '0', '0', 'BTCUSDT' ] ],
+        //         'market': 'BTCUSDT',
+        //         'period': '1min' },
+        //     'error': null };
         const result = this.safeDict (message, 'result');
-        const klineData = this.safeDict (result, 'data');
-        if (!klineData) {
+        if (result === undefined) {
             return;
         }
-        const marketId = this.safeString (klineData, 'symbol');
+        const klineData = this.safeDict (result, 'data');
+        let marketId = this.safeString2 (klineData, 'symbol', 'market', undefined);
+        if (marketId === undefined) {
+            // future
+            marketId = this.safeString (result, 'market');
+        }
         const market = this.safeMarket (marketId, undefined, undefined);
         const symbol = market['symbol'];
-        const messageHash = this.safeString (klineData, 'topic');
-        const ticks = this.safeList (klineData, 'ticks');
-        const timeframeId = this.safeString (klineData, 'type');
-        const timeframe = this.findTimeframe (timeframeId);
+        let messageHash = undefined;
+        let ticks = undefined;
+        let timeframeId = undefined;
+        let timeframe = undefined;
+        if (market['spot']) {
+            ticks = this.safeList (klineData, 'ticks');
+            timeframeId = this.safeString (klineData, 'type');
+            messageHash = this.safeString (klineData, 'topic');
+            timeframe = this.findTimeframe (timeframeId);
+        } else {
+            ticks = this.safeList (result, 'data');
+            timeframeId = this.safeString (result, 'period');
+            timeframe = this.parseLowerTimeframe (timeframeId);
+            messageHash = 'kline:' + String (timeframeId).toLowerCase () + ':' + marketId;
+        }
         const ohlcvsByTimeframe = this.safeValue (this.ohlcvs, symbol);
         if (ohlcvsByTimeframe === undefined) {
             this.ohlcvs[symbol] = {};
@@ -476,14 +589,7 @@ export default class allin extends allinRest {
         }
         for (let i = 0; i < ticks.length; i++) {
             const tick = ticks[i];
-            const parsed = [
-                this.safeTimestamp (tick, 'timestamp'),
-                this.safeFloat (tick, 'open'),
-                this.safeFloat (tick, 'high'),
-                this.safeFloat (tick, 'low'),
-                this.safeFloat (tick, 'close'),
-                this.safeFloat (tick, 'volume'),
-            ];
+            const parsed = this.parseOHLCV (tick, market);
             stored.append (parsed);
         }
         client.resolve (stored, messageHash);
@@ -528,7 +634,12 @@ export default class allin extends allinRest {
         }
         const allinOrderType = this.forceString (this.safeInteger (result, 'order_type'));
         const allinOrderSide = this.safeInteger (result, 'side');
-        const messageHash = this.safeString (result, 'topic');
+        let messageHash = this.safeString (result, 'topic', undefined);
+        let messageHashAll = undefined;
+        if (market['spot']) {
+            messageHash = 'orders:' + market['id'];
+            messageHashAll = 'orders:__ALL__';
+        }
         const cost = this.safeString (result, 'match_amt', '0');
         const order = {
             'id': this.safeString (result, 'order_id'),
@@ -539,7 +650,7 @@ export default class allin extends allinRest {
             'lastUpdateTimestamp': timestamp,
             'status': this.parseSpotOrderStatus (allinOrderStatus),
             'symbol': market['symbol'],
-            'type': this.parseSpotOrderType (allinOrderType),
+            'type': this.parseOrderType (allinOrderType),
             'timeInForce': undefined,
             'side': this.parseOrderSide (allinOrderSide),
             'price': this.safeFloat (result, 'price'),
@@ -560,6 +671,9 @@ export default class allin extends allinRest {
         };
         const safeOrder = this.safeOrder (order, market);
         client.resolve ([ safeOrder ], messageHash);
+        if (messageHashAll) {
+            client.resolve ([ safeOrder ], messageHashAll);
+        }
     }
 
     handleBalance (client: Client, message) {
@@ -595,6 +709,53 @@ export default class allin extends allinRest {
         };
         this.balance = this.safeBalance (this.balance);
         client.resolve (this.balance, messageHash);
+    }
+
+    handlePositions (client: Client, message) {
+        // {
+        //     "id":0,
+        //     "method":"update.position",
+        //     "result":{
+        //       "event":1,
+        //       "position":{
+        //         "position_id":4784242,
+        //         "create_time":1699944061.968543,
+        //         "update_time":1699944061.968656,
+        //         "user_id":9108,
+        //         "market":"BTCUSDT",
+        //         "type":2,
+        //         "side":2,
+        //         "amount":"0.0444",
+        //         "close_left":"0.0444",
+        //         "open_price":"36341.6",
+        //         "open_margin":"6.4063",
+        //         "margin_amount":"16.1356",
+        //         "leverage":"100",
+        //         "profit_unreal":"11.0184",
+        //         "liq_price":"0",
+        //         "mainten_margin":"0.005",
+        //         "mainten_margin_amount":"8.0678",
+        //         "adl_sort":1,
+        //         "roe":"0.6828",
+        //         "margin_ratio":"",
+        //         "stop_loss_price":"-",
+        //         "take_profit_price":"-"
+        //       }
+        //     },
+        //     "error":null
+        //   }
+        const data = this.safeDict (message, 'result');
+        const marketId = data['market'];
+        const market = this.safeMarket (marketId);
+        const messageHash = 'positions';
+        if (this.positions === undefined) {
+            this.positions = new ArrayCacheBySymbolBySide ();
+        }
+        const cache = this.positions;
+        const newPosition = this.safeDict (message, 'result', {});
+        const position = this.parsePosition (newPosition, market);
+        cache.append (position);
+        client.resolve ([ position ], messageHash);
     }
 
     ping (client) {
@@ -645,9 +806,24 @@ export default class allin extends allinRest {
         //         'tpp': 7 },
         //     'merge': 'step1' },
         //     'error': null };
+        // future
+        // {'id': 1,
+        //     'method': 'subscribe.sign',
+        //     'result': None,
+        //     'error': {'code': 20015, 'msg': 'system error'}
+        // }
         const error = message['error'];
         if (error) {
-            throw new ExchangeError (this.id + ' ' + error);
+            let code = this.safeString (error, 'code', undefined);
+            let errorStr = undefined;
+            if (code !== undefined) {
+                errorStr = this.safeString (error, 'msg');
+                this.throwExactlyMatchedException (this.exceptions['exact'], code, errorStr);
+            } else {
+                code = ' ';
+                errorStr = error;
+                this.throwExactlyMatchedException (this.exceptions['exact'], code, errorStr);
+            }
         }
         return false;
     }
@@ -657,10 +833,10 @@ export default class allin extends allinRest {
         if (error) {
             this.handleErrorMessage (client, message);
         }
+        // 'subscribe.depth': this.handleOrderBook,
+        // 'subscribe.kline': this.handleOHLCV,
         const methodsDict: Dict = {
             'update.depth': this.handleOrderBook,
-            'subscribe.depth': this.handleOrderBook,
-            'subscribe.kline': this.handleOHLCV,
             'update.kline': this.handleOHLCV,
             'update.orders': this.handleOrder,
             'update.asset': this.handleBalance,

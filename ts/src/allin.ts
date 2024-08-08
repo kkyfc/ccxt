@@ -2,10 +2,10 @@
 //  ---------------------------------------------------------------------------
 
 import Exchange from './abstract/allin.js';
-import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol, OperationFailed } from './base/errors.js';
+import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol, OperationFailed, BaseError } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
-import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int } from './base/types.js';
+import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage } from './base/types.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -275,6 +275,7 @@ export default class allin extends Exchange {
                     '1010406': BadRequest,          // Depth position error
                     '1010005': BadRequest,          // data is empty
                     '1010364': BadRequest,          // symbol count cannot be more than 10
+                    ' ': BaseError,
                 },
             },
         });
@@ -704,6 +705,74 @@ export default class allin extends Exchange {
         } else if (currentType === 'future' || currentType === 'swap') {
             response = await this.futurePrivateGetOpenApiV2AssetQuery ();
             return this.parseFutureBalance (response);
+        }
+    }
+
+    async fetchLeverage (symbol: string, params = {}): Promise<Leverage> {
+        /**
+         * @method
+         * @name allin#fetchLeverage
+         * @description fetch the set leverage for a market
+         * @param {string} symbol unified market symbol
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         * @returns {object} a [leverage structure]{@link https://docs.ccxt.com/#/?id=leverage-structure}
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'market': market['id'],
+        };
+        const leverage = await this.futurePrivateGetOpenApiV2SettingLeverage (request);
+        return this.parseLeverage (leverage, market);
+    }
+
+    async fetchPosition (symbol: string, params = {}): Promise<Position> {
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' fetchPosition() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const postionList = await this.fetchPositions ([ symbol ], params);
+        if (postionList.length > 0) {
+            return postionList[0];
+        } else {
+            return undefined;
+        }
+    }
+
+    async fetchPositions (symbols: Strings = undefined, params = {}): Promise<Position[]> {
+        await this.loadMarkets ();
+        let symbol = undefined;
+        const request = {};
+        if ((symbols !== undefined) && Array.isArray (symbols)) {
+            const symbolsLength = symbols.length;
+            if (symbolsLength > 1) {
+                throw new ArgumentsRequired (this.id + ' fetchPositions() does not accept an array with more than one symbol');
+            } else if (symbolsLength === 1) {
+                symbol = symbols[0];
+            }
+            symbols = this.marketSymbols (symbols);
+        } else if (symbols !== undefined) {
+            symbol = symbols;
+            symbols = [ this.symbol (symbol) ];
+        }
+        if (symbol !== undefined) {
+            const market = this.market (symbol);
+            request['market'] = market['id'];
+        }
+        const response = await this.futurePrivateGetOpenApiV2PositionPending (request);
+        const positions = this.safeList (response, 'data', []);
+        const positionList = [];
+        for (let i = 0; i < positions.length; i++) {
+            const pos = positions[i];
+            const marketId = pos['market'];
+            const market = this.safeMarket (marketId);
+            const ccPos = this.parsePosition (pos, market);
+            positionList.push (ccPos);
+        }
+        if (symbols !== undefined) {
+            return this.filterByArrayPositions (positionList, 'symbol', symbols, false);
+        } else {
+            return positionList;
         }
     }
 
@@ -1229,6 +1298,31 @@ export default class allin extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
+    async setLeverage (leverage: Int, symbol: Str = undefined, params = {}): Promise<{}> {
+        /**
+         * @method
+         * @name allin#setLeverage
+         * @description set the level of leverage for a market
+         * @param {string} [params.marginMode] set marginMode
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const newMarginMode = this.safeString (params, 'marginMode', undefined);
+        const oldLeverage = this.fetchLeverage (symbol, params);
+        const oldLeverageNum = this.safeInteger (oldLeverage, 'longLeverage');
+        const oldMarginMode = this.safeString (oldLeverage, 'marginMode');
+        if ((newMarginMode && newMarginMode !== oldMarginMode) || oldLeverageNum !== leverage) {
+            const reqMarginMode = newMarginMode ? newMarginMode : oldMarginMode;
+            const request = {
+                'market': market['id'],
+                'leverage': leverage,
+                'position_type': this.toLeverageMode (reqMarginMode),
+            };
+            return await this.futurePrivatePostOpenApiV2SettingLeverage (request);
+        }
+        return {};
+    }
+
     parseTicker (ticker: Dict, market: Market = undefined): Ticker {
         // const ticker = { 'symbol': 'BTC-USDT',
         //     'amt_num': 2,
@@ -1359,15 +1453,35 @@ export default class allin extends Exchange {
         //     'amount': '0' },
         // ];
         // future
+        // open close high low
         // [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
             this.safeTimestamp2 (ohlcv, 'time', 0),
             this.safeInteger2 (ohlcv, 'open', 1),
-            this.safeInteger2 (ohlcv, 'high', 2),
-            this.safeInteger2 (ohlcv, 'low', 3),
-            this.safeInteger2 (ohlcv, 'close', 4),
+            this.safeInteger2 (ohlcv, 'high', 3),
+            this.safeInteger2 (ohlcv, 'low', 4),
+            this.safeInteger2 (ohlcv, 'close', 2),
             this.safeInteger2 (ohlcv, 'volume', 5),
         ];
+    }
+
+    parseLowerTimeframe (timeframeId: string) {
+        const timeframes = {
+            '1min': '1m',
+            '3min': '3m',
+            '5min': '5m',
+            '15min': '15m',
+            '10min': '10m',
+            '30min': '30m',
+            '1hour': '1h',
+            '2hour': '2h',
+            '4hour': '4h',
+            '6hour': '6h',
+            '12hour': '12h',
+            '1day': '1d',
+            '1week': '1w',
+        };
+        return timeframes[timeframeId];
     }
 
     parseTrade (trade: Dict, market?: Market): Trade {
@@ -1619,6 +1733,122 @@ export default class allin extends Exchange {
             'fee': fee,
             'trades': trades,
         }, market);
+    }
+
+    parsePosition (position: Dict, market?: Market): Position {
+        //       "position":{
+        //         "position_id":4784242,
+        //         "create_time":1699944061.968543,
+        //         "update_time":1699944061.968656,
+        //         "user_id":9108,
+        //         "market":"BTCUSDT",
+        //         "type":2,            // Position type，1 Isolated position 2 Cross position
+        //         "side":2,            //1 short 2 long
+        //         "amount":"0.0444",
+        //         "close_left":"0.0444",       // left can close
+        //         "open_price":"36341.6",
+        // "last_price":"62748.25000000",
+        // "sign_price":"56885.76824999",
+        // "index_price":"56864.00000000",
+        //         "open_margin":"6.4063",
+        //         "margin_amount":"16.1356",
+        //         "leverage":"100",
+        //         "profit_unreal":"11.0184",
+        //         "liq_price":"0",
+        //         "mainten_margin":"0.005",
+        //         "mainten_margin_amount":"8.0678",
+        //         "adl_sort":1,
+        //         "roe":"0.6828",
+        //         "margin_ratio":"",
+        //         "stop_loss_price":"-",
+        //         "take_profit_price":"-"
+        //       }
+        const timestamp = this.safeTimestamp (position, 'update_time');
+        const initialMarginNum = this.safeNumber (position, 'open_margin');
+        const maintenanceMarginString = this.safeString (position, 'mainten_margin_amount');
+        const sideNum = this.safeInteger (position, 'side');
+        const modeNum = this.safeInteger (position, 'type');
+        const amount = this.safeString (position, 'amount');
+        const lastPrice = this.safeString (position, 'last_price');
+        const markPrice = this.safeString (position, 'sign_price');
+        const size = market['contractSize'];
+        const notional = this.parseNumber (Precise.stringMul (amount, lastPrice)) * size;
+        const profit_unreal = this.safeNumber (position, 'profit_unreal');
+        const collateral = initialMarginNum + profit_unreal;
+        return this.safePosition ({
+            'info': position,
+            'id': this.safeInteger (position, 'position_id'),
+            'symbol': market['symbol'],
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'lastUpdateTimestamp': timestamp,
+            'initialMargin': initialMarginNum,
+            'initialMarginPercentage': undefined,
+            'maintenanceMargin': this.parseNumber (maintenanceMarginString),
+            'maintenanceMarginPercentage': this.safeInteger (position, 'mainten_margin'),
+            'entryPrice': this.safeFloat (position, 'open_price'),
+            'notional': notional,
+            'leverage': this.safeNumber (position, 'leverage'),
+            'unrealizedPnl': this.safeFloat (position, 'profit_unreal'),
+            'realizedPnl': undefined,
+            'contracts': this.parseNumber (amount), // in USD for inverse swaps
+            'contractSize': this.safeNumber (market, 'contractSize'),
+            'marginRatio': this.safeNumber (position, 'margin_ratio'),
+            'liquidationPrice': this.safeNumber (position, 'liq_price'),
+            'markPrice': this.parseNumber (markPrice),
+            'lastPrice': this.parseNumber (lastPrice),
+            'collateral': collateral,
+            'marginMode': this.parseLeverageMode (modeNum),
+            'side': this.parsePositionSide (sideNum),
+            'percentage': this.safeFloat (position, 'roe'),
+            'stopLossPrice': this.safeNumber (position, 'stop_loss_price'),
+            'takeProfitPrice': this.safeNumber (position, 'take_profit_price'),
+        });
+    }
+
+    parsePositionSide (sideNum: Int) {
+        if (sideNum === 1) {
+            return 'short';
+        } else {
+            return 'long';
+        }
+    }
+
+    toLeverageMode (marginMode: string) {
+        if (marginMode === 'isolated') {
+            return 1;
+        } else {
+            return 2;
+        }
+    }
+
+    parseLeverageMode (modeNum: Int) {
+        if (modeNum === 1) {
+            return 'isolated';
+        } else {
+            return 'cross';
+        }
+    }
+
+    parseLeverage (leverage, market): Leverage {
+        // {
+        //     "code": 0,
+        //     "msg": "success",
+        //     "data": {
+        //       "leverage": "100",
+        //       "position_type": 1
+        //     }
+        //   }
+        const data = this.safeDict (leverage, 'data');
+        const leverageNum = this.safeInteger (data, 'leverage');
+        const modeNum = this.safeInteger (data, 'position_type');
+        return {
+            'info': leverage,
+            'symbol': market['symbol'],
+            'marginMode': this.parseLeverageMode (modeNum),
+            'longLeverage': leverageNum,
+            'shortLeverage': leverageNum,
+        };
     }
 
     handleErrors (statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any) {
