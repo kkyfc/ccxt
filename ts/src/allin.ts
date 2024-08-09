@@ -2,7 +2,10 @@
 //  ---------------------------------------------------------------------------
 
 import Exchange from './abstract/allin.js';
-import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol, OperationFailed, BaseError } from './base/errors.js';
+import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError,
+    OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol,
+    OperationFailed, BaseError,
+    InsufficientFunds } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage } from './base/types.js';
@@ -278,6 +281,8 @@ export default class allin extends Exchange {
                     'default': BaseError,
                     // future
                     '20015': ExchangeError,
+                    '13128': InsufficientFunds,     // balance not enough
+                    '20010': BadRequest,            // price illegal
                 },
             },
         });
@@ -1129,6 +1134,8 @@ export default class allin extends Exchange {
         //         "trade_no": "xxx",
         //     },
         // }
+        // future
+        // {"code": 0, "msg": "success", "data": 5023856, "time": 1723130482}
         await this.loadMarkets ();
         const market = this.market (symbol);
         const symbolId = this.safeString (market, 'id');
@@ -1166,9 +1173,9 @@ export default class allin extends Exchange {
                 market
             );
             if (type === 'limit') {
-                response = this.futurePrivatePostOpenApiV2OrderLimit (request);
+                response = await this.futurePrivatePostOpenApiV2OrderLimit (request);
             } else {
-                response = this.futurePrivatePostOpenApiV2OrderMarket (request);
+                response = await this.futurePrivatePostOpenApiV2OrderMarket (request);
             }
             timestamp = this.safeInteger (response, 'time');  // timestamp in s
             orderId = this.safeString (response, 'data');
@@ -1253,13 +1260,15 @@ export default class allin extends Exchange {
     }
 
     createFutureOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
-        // const orderType = this.toFutureOrderType (type);
         const orderSide = this.toOrderSide (side);
         const request = {
             'market': market['id'],
             'side': orderSide,
             'quantity': this.forceString (amount),
         };
+        if (price !== undefined && type === 'limit') {
+            request['price'] = this.forceString (price);
+        }
         return request;
     }
 
@@ -1310,7 +1319,7 @@ export default class allin extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const newMarginMode = this.safeString (params, 'marginMode', undefined);
-        const oldLeverage = this.fetchLeverage (symbol, params);
+        const oldLeverage = await this.fetchLeverage (symbol, params);
         const oldLeverageNum = this.safeInteger (oldLeverage, 'longLeverage');
         const oldMarginMode = this.safeString (oldLeverage, 'marginMode');
         if ((newMarginMode && newMarginMode !== oldMarginMode) || oldLeverageNum !== leverage) {

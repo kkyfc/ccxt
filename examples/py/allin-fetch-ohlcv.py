@@ -22,7 +22,7 @@ async def example():
     exchange.set_sandbox_mode(True)
     await exchange.load_markets()
     exchange.verbose = True  # uncomment for debugging purposes if necessary
-    fetch_ohlcv = await exchange.fetch_ohlcv('BTC/USDT', '1m', None, 10, {})
+    fetch_ohlcv = await exchange.fetch_ohlcv('BTC/USDT:USDT', '1m', None, 10, {})
     print(fetch_ohlcv)
 
     await exchange.close()

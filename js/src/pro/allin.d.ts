@@ -1,5 +1,5 @@
 import allinRest from '../allin.js';
-import type { Int, Str, OrderBook, Balances, Order, OHLCV, Ticker, Tickers } from '../base/types.js';
+import type { Int, Str, OrderBook, Balances, Order, OHLCV, Ticker, Tickers, Position } from '../base/types.js';
 import Client from '../base/ws/Client.js';
 export default class allin extends allinRest {
     describe(): any;
@@ -7,6 +7,7 @@ export default class allin extends allinRest {
     watchTicker(symbol: string, params?: {}): Promise<Ticker>;
     watchTickers(symbols?: any, params?: {}): Promise<Tickers>;
     watchBalance(params?: {}): Promise<Balances>;
+    watchPositions(symbols?: string[], since?: Int, limit?: Int, params?: {}): Promise<Position[]>;
     watchOrders(symbol?: Str, since?: Int, limit?: Int, params?: {}): Promise<Order[]>;
     watchOHLCV(symbol: string, timeframe?: string, since?: Int, limit?: Int, params?: {}): Promise<OHLCV[]>;
     authenticate(url: any, params?: {}): Promise<any>;
@@ -19,6 +20,7 @@ export default class allin extends allinRest {
     handleOHLCV(client: Client, message: any): void;
     handleOrder(client: Client, message: any): void;
     handleBalance(client: Client, message: any): void;
+    handlePositions(client: Client, message: any): void;
     ping(client: any): {
         id: any;
         method: string;

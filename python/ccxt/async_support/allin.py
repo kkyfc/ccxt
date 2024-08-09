@@ -7,13 +7,15 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import asyncio
 import hashlib
-from ccxt.base.types import Any, Balances, Int, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Ticker, Trade, Num, Str
+from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, Trade, Num
 from typing import List
+from ccxt.base.errors import BaseError
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
 from ccxt.base.errors import BadSymbol
+from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import OperationFailed
 from ccxt.base.errors import NetworkError
@@ -36,6 +38,8 @@ class allin(Exchange, ImplicitAPI):
             'certified': False,
             'options': {
                 'sandboxMode': False,
+                'fetchMarkets': ['spot', 'future'],
+                'defaultType': 'spot',  # 'future', 'spot'
             },
             'has': {
                 'CORS': True,
@@ -43,7 +47,7 @@ class allin(Exchange, ImplicitAPI):
                 'margin': True,
                 'swap': True,
                 'future': True,
-                'option': True,
+                'option': False,
                 'borrowCrossMargin': True,
                 'cancelAllOrders': True,
                 'cancelAllOrdersAfter': True,
@@ -121,11 +125,11 @@ class allin(Exchange, ImplicitAPI):
                 'fetchPremiumIndexOHLCV': True,
                 'fetchSettlementHistory': True,
                 'fetchTicker': True,
-                'fetchTickers': True,
+                'fetchTickers': False,
                 'fetchTime': True,
                 'fetchTrades': True,
-                'fetchTradingFee': True,
-                'fetchTradingFees': True,
+                'fetchTradingFee': False,
+                'fetchTradingFees': False,
                 'fetchTransactions': False,
                 'fetchTransfers': True,
                 'fetchUnderlyingAssets': False,
@@ -156,32 +160,33 @@ class allin(Exchange, ImplicitAPI):
             },
             'urls': {
                 'test': {
-                    'spot': 'https://api.allintest.pro',
-                    'futures': 'https://api.allintest.pro',
-                    'public': 'https://api.allintest.pro',
-                    'private': 'https://api.allintest.pro',
+                    'spotPublic': 'https://api.allintest.pro',
+                    'spotPrivate': 'https://api.allintest.pro',
+                    'futurePublic': 'https://api.allintest.pro/futuresopen',
+                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
                 },
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc': ['https://allinexchange.github.io/spot-docs/v1/en/#introduction'],
                 'api': {
-                    'spot': 'https://api.allintest.pro',
-                    'futures': 'https://api.allintest.pro',
-                    'public': 'https://api.allintest.pro',
-                    'private': 'https://api.allintest.pro',
+                    'spotPublic': 'https://api.allintest.pro',
+                    'spotPrivate': 'https://api.allintest.pro',
+                    'futurePublic': 'https://api.allintest.pro/futuresopen',
+                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
                 },
             },
             'api': {
-                'public': {
+                'spotPublic': {
                     'get': {
+                        # public
                         '/open/v1/tickers/market': 0,
                         '/open/v1/depth/market': 0,
                         '/open/v1/trade/market': 0,
                         '/open/v1/kline/market': 0,
+                        '/open/v1/tickers/exchange_info': 0,
                     },
                 },
-                'private': {
+                'spotPrivate': {
                     'get': {
-                        '/open/v1/tickers/exchange_info': 0,
                         '/open/v1/tickers': 0,
                         '/open/v1/balance': 0,
                         '/open/v1/timestamp': 0,
@@ -198,6 +203,47 @@ class allin(Exchange, ImplicitAPI):
                         '/open/v1/orders/place': 0,
                         '/open/v1/orders/cancel': 0,
                         '/open/v1/orders/batcancel': 0,
+                    },
+                },
+                'futurePublic': {
+                    'get': {
+                        # public
+                        '/open/api/v2/market/kline': 0,
+                        '/open/api/v2/market/list': 0,
+                        '/open/api/v2/market/deals': 0,
+                        '/open/api/v2/market/depth': 0,
+                        '/open/api/v2/market/state': 0,
+                        '/open/api/v2/market/state/all': 0,
+                    },
+                },
+                'futurePrivate': {
+                    'get': {
+                        # private
+                        '/open/api/v2/order/deals': 0,
+                        '/open/api/v2/order/finished': 0,
+                        '/open/api/v2/order/detail': 0,
+                        '/open/api/v2/order/pending': 0,
+                        '/open/api/v2/order/stop/pending': 0,
+                        '/open/api/v2/order/stop/finished': 0,
+                        '/open/api/v2/setting/leverage': 0,
+                        '/open/api/v2/asset/query': 0,
+                        '/open/api/v2/asset/history': 0,
+                        '/open/api/v2/position/pending': 0,
+                        '/open/api/v2/position/margin': 0,
+                    },
+                    'post': {
+                        '/open/api/v2/position/margin': 0,
+                        '/open/api/v2/order/market': 0,
+                        '/open/api/v2/order/cancel/all': 0,
+                        '/open/api/v2/order/cancel': 0,
+                        '/open/api/v2/order/limit': 0,
+                        '/open/api/v2/order/stop': 0,
+                        '/open/api/v2/order/stop/cancel': 0,
+                        '/open/api/v2/order/stop/cancel/all': 0,
+                        '/open/api/v2/setting/leverage': 0,
+                        '/open/api/v2/position/close/limit': 0,
+                        '/open/api/v2/position/close/market': 0,
+                        '/open/api/v2/position/close/stop': 0,
                     },
                 },
             },
@@ -240,6 +286,11 @@ class allin(Exchange, ImplicitAPI):
                     '1010406': BadRequest,          # Depth position error
                     '1010005': BadRequest,          # data is empty
                     '1010364': BadRequest,          # symbol count cannot be more than 10
+                    'default': BaseError,
+                    # future
+                    '20015': ExchangeError,
+                    '13128': InsufficientFunds,     # balance not enough
+                    '20010': BadRequest,            # price illegal
                 },
             },
         })
@@ -281,21 +332,142 @@ class allin(Exchange, ImplicitAPI):
         #     'time': 1720058066}
         promisesRaw = []
         # sandboxMode = self.safe_bool(self.options, 'sandboxMode', False)
-        rawFetchMarkets = self.safe_list(self.options, 'fetchMarkets', ['spot', 'linear', 'inverse'])
+        rawFetchMarkets = self.safe_list(self.options, 'fetchMarkets', ['spot', 'future'])
         for i in range(0, len(rawFetchMarkets)):
             marketType = rawFetchMarkets[i]
             if marketType == 'spot':
-                promisesRaw.append(self.privateGetOpenV1TickersExchangeInfo(params))
+                promisesRaw.append(self.spotPublicGetOpenV1TickersExchangeInfo(params))
+            elif marketType == 'future':
+                promisesRaw.append(self.futurePublicGetOpenApiV2MarketList(params))
         promises = await asyncio.gather(*promisesRaw)
         markets = []
+        promiseMarkets = None
         for i in range(0, len(rawFetchMarkets)):
+            type_ = rawFetchMarkets[i]
             promise = self.safe_dict(promises, i)
-            dataDict = self.safe_dict(promise, 'data', {})
-            promiseMarkets = self.safe_list(dataDict, 'symbols', [])
+            if type_ == 'spot':
+                dataDict = self.safe_dict(promise, 'data', {})
+                promiseMarkets = self.safe_list(dataDict, 'symbols', [])
+            elif type_ == 'future':
+                promiseMarkets = self.safe_list(promise, 'data', [])
+            else:
+                continue
             markets = self.array_concat(markets, promiseMarkets)
         return self.parse_markets(markets)
 
     def parse_market(self, market: dict) -> MarketInterface:
+        spot = self.safe_bool(market, 'is_spot_trading_allowed', False) is True
+        if spot:
+            return self.parse_spot_market(market)
+        else:
+            return self.parse_future_market(market)
+
+    def parse_future_market(self, market: dict) -> MarketInterface:
+        # market = {'code': 0,
+        #     'data': [{'amount_min': '0.0001',
+        #         'amount_prec': 4,
+        #         'available': True,
+        #         'fee_prec': 8,
+        #         'leverages': ['5', '8', '10', '15', '20', '30', '50', '100'],
+        #         'limits': [['500.0001', '5', '0.1'],
+        #             ['200.0001', '10', '0.05'],
+        #             ['100.0001', '15', '0.03'],
+        #             ['50.0001', '20', '0.02'],
+        #             ['20.0001', '50', '0.01'],
+        #             ['10.0001', '100', '0.005']],
+        #         'merges': ['100', '10', '1', '0.1', '0.01'],
+        #         'money': 'USDT',
+        #         'money_prec': 2,
+        #         'name': 'BTCUSDT',
+        #         'sort': 1,
+        #         'stock': 'BTC',
+        #         'stock_prec': 8,
+        #         'tick_size': '0.01',
+        #         'type': 1}],
+        #     'msg': 'success',
+        #     'time': 1722510060}
+        origin_symbol = self.safe_string(market, 'name')
+        active = self.safe_bool(market, 'available')
+        baseId = self.safe_string(market, 'stock')
+        quoteId = self.safe_string(market, 'money')
+        base = self.safe_currency_code(baseId)
+        quote = self.safe_currency_code(quoteId)
+        spot = False
+        future = False
+        swap = True
+        option = False
+        type_ = 'swap'
+        contract = swap or future or option
+        settle = None
+        futureType = self.safe_integer(market, 'type')
+        linear = None
+        if futureType == 1:
+            settle = quote
+            linear = True
+        else:
+            settle = base
+            linear = False
+        settleId = settle
+        symbol = base + '/' + quote + ':' + settle
+        fees = {}
+        leverages = self.safe_list(market, 'leverages')
+        maxLeverage = self.safe_string(leverages, len(leverages) - 1)
+        minLeverage = self.safe_string(leverages, 0)
+        base_precision = self.safe_number(market, 'stock_prec')
+        quote_precision = self.safe_number(market, 'money_prec')
+        return self.extend(fees, {
+            'id': origin_symbol,
+            'symbol': symbol,
+            'base': base,
+            'quote': quote,
+            'baseId': baseId,
+            'quoteId': quoteId,
+            'active': active,
+            'type': type_,
+            'spot': spot,
+            'margin': False,
+            'swap': swap,
+            'future': future,
+            'option': False,
+            'contract': contract,
+            'settle': settle,
+            'settleId': settleId,
+            'contractSize': self.safe_number(market, 'tick_size') if contract else None,
+            'linear': linear,
+            'inverse': not linear,
+            'expiry': None,
+            'expiryDatetime': None,
+            'strike': None,
+            'optionType': None,
+            'maker': 0.0001,
+            'taker': 0.0002,
+            'created': None,
+            'precision': {
+                'amount': base_precision,
+                'price': quote_precision,
+            },
+            'limits': {
+                'leverage': {
+                    'min': self.parse_number(minLeverage),
+                    'max': self.parse_number(maxLeverage),
+                },
+                'amount': {
+                    'min': self.safe_number(market, 'amount_min'),
+                    'max': None,
+                },
+                'price': {
+                    'min': None,
+                    'max': None,
+                },
+                'cost': {
+                    'min': None,
+                    'max': None,
+                },
+            },
+            'info': market,
+        })
+
+    def parse_spot_market(self, market: dict) -> MarketInterface:
         # market = {'symbol': 'BTC-USDT',
         #     'status': 'TRADING',
         #     'base_asset': 'USDT',
@@ -310,9 +482,9 @@ class allin(Exchange, ImplicitAPI):
         active = market['status'] == 'TRADING'
         baseId = self.safe_string(market, 'base_asset')
         quoteId = self.safe_string(market, 'quote_asset')
-        spot = market['is_spot_trading_allowed'] is True
-        swap = False
+        spot = True
         future = False
+        swap = False
         option = False
         type_ = 'spot'
         contract = swap or future or option
@@ -401,6 +573,7 @@ class allin(Exchange, ImplicitAPI):
         })
 
     async def fetch_ticker(self, symbol: str, params={}) -> Ticker:
+        # spot
         # tickers = {'code': 0,
         #     'msg': 'ok',
         #     'data': [{'symbol': 'BTC-USDT',
@@ -414,13 +587,43 @@ class allin(Exchange, ImplicitAPI):
         #         'price': '68000',
         #         'l_price': '68000'}],
         #     'time': 1720064580}
+        # future
+        # {
+        #     "code": 0,
+        #     "msg": "success",
+        #     "data": {
+        #       "market": "ETHUSDT",
+        #       "amount": "4753.05",
+        #       "high": "1573.89",
+        #       "last": "1573.89",
+        #       "low": "1571.23",
+        #       "open": "1571.23",
+        #       "change": "0.0016929411989333",
+        #       "period": 86400,
+        #       "volume": "3.02",
+        #       "funding_time": 400,
+        #       "position_amount": "2.100",
+        #       "funding_rate_last": "0.00375",
+        #       "funding_rate_next": "0.00293873",
+        #       "funding_rate_predict": "-0.00088999",
+        #       "insurance": "10500.45426906585552617850",
+        #       "sign_price": "1581.98",
+        #       "index_price": "1578.12",
+        #       "sell_total": "112.974",
+        #       "buy_total": "170.914"
+        #     }
+        #   }
         await self.load_markets()
         market = self.market(symbol)
         request: dict = {
             'symbol': market['id'],
         }
-        response = await self.publicGetOpenV1TickersMarket(self.extend(request, params))
-        timestamp = self.safe_timestamp(response, 'time')
+        response = None
+        if market['spot']:
+            response = await self.spotPublicGetOpenV1TickersMarket(self.extend(request, params))
+        else:
+            response = await self.futurePublicGetOpenApiV2MarketState(self.extend(request, params))
+        timestamp = self.safe_timestamp(response, 'time', self.milliseconds())
         TickerList = self.safe_list(response, 'data', [])
         firstTicker = self.safe_value(TickerList, 0, {})
         firstTicker['timestamp'] = timestamp
@@ -448,18 +651,29 @@ class allin(Exchange, ImplicitAPI):
             raise ArgumentsRequired(self.id + ' fetchOrderBook() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        request: dict = {
-            'symbol': market['id'],
-        }
-        response = await self.publicGetOpenV1DepthMarket(self.extend(request, params))
-        result = self.safe_dict(response, 'data', {})
-        timestamp = self.safe_timestamp(response, 'time')
-        return self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+        response = None
+        if market['spot']:
+            request: dict = {
+                'symbol': market['id'],
+            }
+            response = await self.spotPublicGetOpenV1DepthMarket(request)
+            result = self.safe_dict(response, 'data', {})
+            timestamp = self.safe_timestamp(response, 'time')
+            return self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+        else:
+            request: dict = {
+                'market': market['id'],
+            }
+            response = await self.futurePublicGetOpenApiV2MarketDepth(request)
+            result = self.safe_dict(response, 'data', {})
+            timestamp = self.safe_integer(result, 'time')
+            return self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 0, 1)
 
     async def fetch_balance(self, params={}) -> Balances:
         """
         query for balance and get the amount of funds available for trading or funds locked in orders
         :see: https://allinexchange.github.io/spot-docs/v1/en/#account-balance
+        :param str [params.type]: wallet type, ['spot', 'future']
         """
         # balances = {'code': 0,
         #     'msg': 'ok',
@@ -470,8 +684,72 @@ class allin(Exchange, ImplicitAPI):
         #         {'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT'}],
         #     'time': 1720067861}
         await self.load_markets()
-        response = await self.privateGetOpenV1Balance(params)
-        return self.parse_balance(response)
+        response = None
+        currentType = self.safe_string(params, 'defaultType', None)
+        if not currentType:
+            currentType = self.options['defaultType']
+        if currentType == 'spot':
+            response = await self.spotPrivateGetOpenV1Balance()
+            return self.parse_spot_balance(response)
+        elif currentType == 'future' or currentType == 'swap':
+            response = await self.futurePrivateGetOpenApiV2AssetQuery()
+            return self.parse_future_balance(response)
+
+    async def fetch_leverage(self, symbol: str, params={}) -> Leverage:
+        """
+        fetch the set leverage for a market
+        :param str symbol: unified market symbol
+        :param dict [params]: extra parameters specific to the exchange API endpoint
+        :returns dict: a `leverage structure <https://docs.ccxt.com/#/?id=leverage-structure>`
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'market': market['id'],
+        }
+        leverage = await self.futurePrivateGetOpenApiV2SettingLeverage(request)
+        return self.parse_leverage(leverage, market)
+
+    async def fetch_position(self, symbol: str, params={}) -> Position:
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' fetchPosition() requires a symbol argument')
+        await self.load_markets()
+        postionList = await self.fetch_positions([symbol], params)
+        if len(postionList) > 0:
+            return postionList[0]
+        else:
+            return None
+
+    async def fetch_positions(self, symbols: Strings = None, params={}) -> List[Position]:
+        await self.load_markets()
+        symbol = None
+        request = {}
+        if (symbols is not None) and isinstance(symbols, list):
+            symbolsLength = len(symbols)
+            if symbolsLength > 1:
+                raise ArgumentsRequired(self.id + ' fetchPositions() does not accept an array with more than one symbol')
+            elif symbolsLength == 1:
+                symbol = symbols[0]
+            symbols = self.market_symbols(symbols)
+        elif symbols is not None:
+            symbol = symbols
+            symbols = [self.symbol(symbol)]
+        if symbol is not None:
+            market = self.market(symbol)
+            request['market'] = market['id']
+        response = await self.futurePrivateGetOpenApiV2PositionPending(request)
+        positions = self.safe_list(response, 'data', [])
+        positionList = []
+        for i in range(0, len(positions)):
+            pos = positions[i]
+            marketId = pos['market']
+            market = self.safe_market(marketId)
+            ccPos = self.parse_position(pos, market)
+            positionList.append(ccPos)
+        if symbols is not None:
+            return self.filter_by_array_positions(positionList, 'symbol', symbols, False)
+        else:
+            return positionList
 
     async def fetch_ohlcv(self, symbol: str, timeframe: str = '1m', since: Int = None, limit: Int = None, params={}) -> List[list]:
         """
@@ -480,8 +758,8 @@ class allin(Exchange, ImplicitAPI):
         :see: https://allinexchange.github.io/spot-docs/v1/en/#market-k-line
         :param str symbol: unified symbol of the market to fetch OHLCV data for
         :param str timeframe: the length of time each candle represents
-        :param int [since]: not support
-        :param int [limit]: not support
+        :param int [since]: timestamp in ms of the earliest funding rate to fetch
+        :param int [limit]: the maximum amount of [funding rate structures]
         """
         # kline = {'code': 0,
         #     'msg': 'ok',
@@ -490,15 +768,51 @@ class allin(Exchange, ImplicitAPI):
         #          {'time': 1720072740, 'open': '68000.00', 'close': '68000.00', 'high': '68000.00', 'low': '68000.00', 'volume': '0', 'amount': '0'},
         # ],
         #     'time': 1720081645}
+        # futureKline = {'code': 0,
+        #     'msg': 'success',
+        #     'data': [[1722669840, '66019', '66019', '66019', '66019', '0', '0', 'BTCUSDT'],
+        #         [1722669900, '66019', '66019', '66019', '66019', '0', '0', 'BTCUSDT'],
+        #         [1722669960, '66019', '66019', '66019', '66019', '0', '0', 'BTCUSDT'],
+        #         [1722670020, '66019', '66019', '66019', '66019', '0', '0', 'BTCUSDT']],
+        #     'time': 1722670456}
         await self.load_markets()
         market = self.market(symbol)
         marketId = self.market_id(symbol)
+        spot = market['spot']
+        # swap = market['swap']
         duration = self.timeframes[timeframe]
-        params = self.extend(params, {
-            'symbol': marketId,
-            'type': duration,
-        })
-        response = await self.publicGetOpenV1KlineMarket(params)
+        request = {}
+        response = None
+        if spot:
+            request = {
+                'symbol': marketId,
+                'type': duration,
+            }
+            response = await self.spotPublicGetOpenV1KlineMarket(request)
+        else:
+            start = None
+            end = None
+            # duration time steep
+            interval = self.parse_timeframe(timeframe)
+            if limit and since:
+                start = since
+                end = start + limit * interval * 1000 - 1
+            elif limit:
+                end = self.milliseconds()
+                start = end - limit * interval * 1000
+            elif since:
+                end = self.milliseconds()
+                start = since
+            duration = str(duration).lower()
+            request = {
+                'market': marketId,
+                'type': duration,
+            }
+            if start is not None:
+                request['start_time'] = self.parse_to_int(start / 1000)
+            if end is not None:
+                request['end_time'] = self.parse_to_int(end / 1000)
+            response = await self.futurePublicGetOpenApiV2MarketKline(request)
         klines = self.safe_list(response, 'data', [])
         return self.parse_ohlcvs(klines, market, timeframe, since, limit)
 
@@ -541,19 +855,32 @@ class allin(Exchange, ImplicitAPI):
             raise ArgumentsRequired(self.id + ' fetchOrders() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        request: dict = self.extend(params, {
-            'symbol': market['id'],
-            'side': 0,
-        })
+        request = None
         paginate = False
         paginate, params = self.handle_option_and_params(params, 'fetchOrders', 'paginate')
         if paginate:
             return await self.fetch_paginated_call_dynamic('fetchOrders', symbol, since, limit, params)
-        if since is not None:
-            request['start'] = since
-        response = await self.privateGetOpenV1Orders(request)
-        orders = self.safe_list(self.safe_dict(response, 'data', {}), 'orders')
-        return self.parse_orders(orders, market, since, limit, params)
+        response = None
+        if market['spot']:
+            request = {
+                'symbol': market['id'],
+                'side': 0,
+            }
+            if since is not None:
+                request['start'] = since
+            response = await self.spotPrivateGetOpenV1Orders(request)
+        else:
+            request = {
+                'market': market['id'],
+            }
+            if since is not None:
+                request['start_time'] = since
+            response = await self.futurePrivateGetOpenApiV2OrderFinished(request)
+        orders = self.safe_list_2(self.safe_dict(response, 'data', {}), 'orders', 'records')
+        if orders:
+            return self.parse_orders(orders, market, since, limit, params)
+        else:
+            return []
 
     async def fetch_open_orders(self, symbol: Str, since: Int = None, limit: Int = None, params={}) -> List[Order]:
         """
@@ -583,12 +910,25 @@ class allin(Exchange, ImplicitAPI):
         # }
         await self.load_markets()
         market = self.market(symbol)
-        request: dict = self.extend(params, {
-            'symbol': market['id'],
-        })
-        response = await self.privateGetOpenV1OrdersLast(request)
-        orders = self.safe_list(response, 'data')
-        return self.parse_orders(orders, market)
+        request: dict = None
+        response = None
+        orders = None
+        if market['spot']:
+            request = {
+                'symbol': market['id'],
+            }
+            response = await self.spotPrivateGetOpenV1OrdersLast(request)
+            orders = self.safe_list(response, 'data')
+        else:
+            request = {
+                'market': market['id'],
+            }
+            response = await self.futurePrivateGetOpenApiV2OrderPending(request)
+            orders = self.safe_list(self.safe_dict(response, 'data'), 'records')
+        if orders:
+            return self.parse_orders(orders, market)
+        else:
+            return []
 
     async def fetch_order(self, id: str, symbol: Str, params={}) -> Order:
         """
@@ -622,17 +962,52 @@ class allin(Exchange, ImplicitAPI):
         #             }]
         #     }
         # }
+        # future
+        # futureOrder = {
+        #     'code': 0,
+        #     'msg': 'success',
+        #     'data': {
+        #         'order_id': 1470445037,
+        #         'position_id': 0,
+        #         'market': 'ETHUSDT',
+        #         'type': 2,
+        #         'side': 1,
+        #         'left': '0',
+        #         'amount': '1',
+        #         'filled': '1',
+        #         'deal_fee': '0.7869',
+        #         'price': '0',
+        #         'avg_price': '1573.84',
+        #         'deal_stock': '1573.84',
+        #         'position_type': 1,
+        #         'leverage': '20',
+        #         'update_time': 1697616547.90107,
+        #         'create_time': 1697616547.901067,
+        #         'status': 3,
+        #         'stop_loss_price': '-',
+        #         'take_profit_price': '-',
+        #         'client_oid': '36341ddd362363263626',
+        #     },
+        # }
         if id is None:
             raise ArgumentsRequired(self.id + ' fetchOrder() requires a orderId argument')
         if symbol is None:
             raise ArgumentsRequired(self.id + ' fetchOrder() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        request: dict = {
-            'order_id': id,
-            'symbol': market['id'],
-        }
-        response = await self.privateGetOpenV1OrdersDetail(request)
+        response = None
+        if market['spot']:
+            request: dict = {
+                'order_id': id,
+                'symbol': market['id'],
+            }
+            response = await self.spotPrivateGetOpenV1OrdersDetail(request)
+        else:
+            request: dict = {
+                'order_id': id,
+                'market': market['id'],
+            }
+            response = await self.futurePrivateGetOpenApiV2OrderDetail(request)
         order = self.safe_dict(response, 'data')
         return self.parse_order(order, market)
 
@@ -661,10 +1036,17 @@ class allin(Exchange, ImplicitAPI):
         #     'time': 1720167549}
         await self.load_markets()
         market = self.market(symbol)
-        request: dict = {
-            'symbol': market['id'],
-        }
-        response = await self.publicGetOpenV1TradeMarket(request)
+        response = None
+        if market['spot']:
+            request: dict = {
+                'symbol': market['id'],
+            }
+            response = await self.spotPublicGetOpenV1TradeMarket(request)
+        else:
+            request: dict = {
+                'market': market['id'],
+            }
+            response = await self.futurePublicGetOpenApiV2MarketDeals(request)
         trades = self.safe_list(response, 'data')
         return self.parse_trades(trades, market, since, limit)
 
@@ -687,32 +1069,64 @@ class allin(Exchange, ImplicitAPI):
         #         "trade_no": "xxx",
         #     },
         # }
+        # future
+        # {"code": 0, "msg": "success", "data": 5023856, "time": 1723130482}
         await self.load_markets()
         market = self.market(symbol)
         symbolId = self.safe_string(market, 'id')
-        request: dict = self.create_order_request(
-            symbol,
-            type,
-            side,
-            amount,
-            price,
-            params,
-            market
-        )
-        response = await self.privatePostOpenV1OrdersPlace(request)
-        orderData = self.safe_dict(response, 'data')
-        timestamp = self.safe_integer(response, 'time')  # timestamp in s
+        response = None
+        allinOrderSide = None
+        allinOrderType = None
+        timestamp = None  # timestamp in s
+        orderId = None
+        tradeNo = None
+        if market['spot']:
+            request: dict = self.create_spot_order_request(
+                symbol,
+                type,
+                side,
+                amount,
+                price,
+                params,
+                market
+            )
+            response = await self.spotPrivatePostOpenV1OrdersPlace(request)
+            orderData = self.safe_dict(response, 'data')
+            timestamp = self.safe_integer(response, 'time')  # timestamp in s
+            orderId = self.safe_string(orderData, 'order_id')
+            tradeNo = self.safe_string(orderData, 'trade_no')
+            allinOrderSide = request['side']
+            allinOrderType = request['order_type']
+        else:
+            request: dict = self.create_future_order_request(
+                symbol,
+                type,
+                side,
+                amount,
+                price,
+                params,
+                market
+            )
+            if type == 'limit':
+                response = await self.futurePrivatePostOpenApiV2OrderLimit(request)
+            else:
+                response = await self.futurePrivatePostOpenApiV2OrderMarket(request)
+            timestamp = self.safe_integer(response, 'time')  # timestamp in s
+            orderId = self.safe_string(response, 'data')
+            tradeNo = None
+            allinOrderSide = self.to_order_side(side)
+            allinOrderType = self.to_future_order_type(type)
         return self.parse_order({
-            'order_id': self.safe_string(orderData, 'order_id'),
-            'trade_no': self.safe_string(orderData, 'trade_no'),
+            'order_id': orderId,
+            'trade_no': tradeNo,
             'symbol': symbolId,
             'price': price,
             'quantity': amount,
             'match_amt': '0',
             'match_qty': '0',
             'match_price': '',
-            'side': request['side'],
-            'order_type': request['order_type'],
+            'side': allinOrderSide,
+            'order_type': allinOrderType,
             'status': 'open',
             'create_at': timestamp,
         }, market)
@@ -750,12 +1164,12 @@ class allin(Exchange, ImplicitAPI):
             'symbol': market['id'],
             'order_id': id,
         }
-        response = await self.privatePostOpenV1OrdersCancel(request)
+        response = await self.spotPrivatePostOpenV1OrdersCancel(request)
         orderData = self.safe_dict(response, 'data')
         return self.parse_order(orderData, market)
 
-    def create_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
-        orderType = self.to_order_type(type)
+    def create_spot_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
+        orderType = self.to_spot_order_type(type)
         orderSide = self.to_order_side(side)
         request = {
             'symbol': market['id'],
@@ -771,13 +1185,24 @@ class allin(Exchange, ImplicitAPI):
             'trailingPercent', 'quoteOrderQty'])
         return self.extend(request, requestParams)
 
+    def create_future_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
+        orderSide = self.to_order_side(side)
+        request = {
+            'market': market['id'],
+            'side': orderSide,
+            'quantity': self.force_string(amount),
+        }
+        if price is not None and type == 'limit':
+            request['price'] = self.force_string(price)
+        return request
+
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.implode_hostname(self.urls['api'][api]) + path
         nonce = str(self.nonce())
         ts = nonce
         client_id = self.apiKey
         requestParams = self.extend({}, params)
-        if api == 'private':
+        if (api == 'spotPrivate') or (api == 'futurePrivate') or (api == 'private'):
             self.check_required_credentials()
             requestParams = self.extend(requestParams, {'ts': ts, 'nonce': nonce, 'sign': '', 'client_id': self.apiKey})
             s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts
@@ -801,6 +1226,27 @@ class allin(Exchange, ImplicitAPI):
             body = self.urlencode(body)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
+    async def set_leverage(self, leverage: Int, symbol: Str = None, params={}) -> {}:
+        """
+        set the level of leverage for a market
+        :param str [params.marginMode]: set marginMode
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        newMarginMode = self.safe_string(params, 'marginMode', None)
+        oldLeverage = await self.fetch_leverage(symbol, params)
+        oldLeverageNum = self.safe_integer(oldLeverage, 'longLeverage')
+        oldMarginMode = self.safe_string(oldLeverage, 'marginMode')
+        if (newMarginMode and newMarginMode != oldMarginMode) or oldLeverageNum != leverage:
+            reqMarginMode = newMarginMode if newMarginMode else oldMarginMode
+            request = {
+                'market': market['id'],
+                'leverage': leverage,
+                'position_type': self.to_leverage_mode(reqMarginMode),
+            }
+            return await self.futurePrivatePostOpenApiV2SettingLeverage(request)
+        return {}
+
     def parse_ticker(self, ticker: dict, market: Market = None) -> Ticker:
         # ticker = {'symbol': 'BTC-USDT',
         #     'amt_num': 2,
@@ -812,20 +1258,47 @@ class allin(Exchange, ImplicitAPI):
         #     'change': '0',
         #     'price': '68000',
         #     'l_price': '68000'}
-        marketId = self.safe_string(ticker, 'symbol')
+        # future
+        # {
+        #         "market": "1000SHIBUSDT",
+        #         "amount": "35226256.573504",
+        #         "high":"0.009001",
+        #         "last": "0.008607",
+        #         "low": "0.008324",
+        #         "open": "0.008864",
+        #         "period": 86400,
+        #         "volume":"4036517772",
+        #         "change": "-0.0289936823104693",
+        #         "funding_time": 79,
+        #         "position_amount": "0",
+        #         "funding_rate_last": "0.00092889",
+        #         "funding_rate_next":"0.00078062",
+        #         "funding_rate_predict": "0.00059084",
+        #         "insurance": "12920.37897885999447286856",
+        #         "sign_price": "0.008607",
+        #         "index_price": "0.008606",
+        #         "sell_total":"46470921",
+        #         "buy_total": "43420303"
+        #       }
+        marketId = self.safe_string_2(ticker, 'symbol', 'markt')
         symbol = self.safe_symbol(marketId, market, None)
-        last = self.safe_string(ticker, 'price')
+        last = self.safe_string_2(ticker, 'price', 'last')
         baseVolume = self.safe_string(ticker, 'volume')  # 数量
         quoteVolume = self.safe_string(ticker, 'amount')  # 金额
         timestamp = self.safe_integer(ticker, 'timestamp')
+        open_ = self.safe_number(ticker, 'open')
+        high = self.safe_number(ticker, 'high')
+        low = self.safe_number(ticker, 'low')
+        if timestamp is not None:
+            timestamp = self.milliseconds()
         return self.safe_ticker({
             'symbol': symbol,
             'info': ticker,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'open': None,
-            'high': self.safe_string(ticker, 'high'),
-            'low': self.safe_string(ticker, 'low'),
+            'open': open_,
+            'high': high,
+            'low': low,
             'close': last,
             'bid': None,
             'bidVolume': None,
@@ -839,7 +1312,7 @@ class allin(Exchange, ImplicitAPI):
             'baseVolume': baseVolume,
         }, market)
 
-    def parse_balance(self, response: Any) -> Balances:
+    def parse_spot_balance(self, response: Any) -> Balances:
         # balances = {'code': 0,
         #     'msg': 'ok',
         #     'data': [
@@ -849,7 +1322,7 @@ class allin(Exchange, ImplicitAPI):
         #         {'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT'}],
         #     'time': 1720067861}
         originBalances = self.safe_list(response, 'data', [])
-        timestamp = self.safe_timestamp(response, 'timestamp')
+        timestamp = self.safe_timestamp(response, 'time')
         balances = {
             'info': originBalances,
             'timestamp': timestamp,
@@ -861,6 +1334,46 @@ class allin(Exchange, ImplicitAPI):
             used = self.safe_string(originBalance, 'freeze')
             total = self.safe_string(originBalance, 'amount')
             free = Precise.string_sub(total, used)
+            balances[symbol] = {
+                'free': free,
+                'used': used,
+                'total': total,
+                'debt': 0,  # ???
+            }
+        return self.safe_balance(balances)
+
+    def parse_future_balance(self, response: Any) -> Balances:
+        # response = {
+        #     'code': 0,
+        #     'msg': 'success',
+        #     'data': {
+        #         'USDT': {
+        #             'available': '8300.569',
+        #             'frozen': '0',
+        #             'margin': '0',
+        #             'balance_total': '8300.569',
+        #             'profit_unreal': '0',
+        #             'transfer': '8300.569',
+        #             'bonus': '0',
+        #         },
+        #     },
+        #     'time': 1720067861,
+        # }
+        originBalances = self.safe_dict(response, 'data', {})
+        timestamp = self.safe_timestamp(response, 'time')
+        balances = {
+            'info': originBalances,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+        }
+        keys = list(originBalances.keys())
+        for i in range(0, len(keys)):
+            key = keys[i]
+            originBalance = originBalances[key]
+            symbol = key
+            used = self.safe_string(originBalance, 'frozen')
+            total = self.safe_string(originBalance, 'balance_total')
+            free = self.safe_string(originBalance, 'available')
             balances[symbol] = {
                 'free': free,
                 'used': used,
@@ -885,14 +1398,35 @@ class allin(Exchange, ImplicitAPI):
         #     'volume': '0',
         #     'amount': '0'},
         # ]
+        # future
+        # open close high low
+        # [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
-            self.safe_timestamp(ohlcv, 'timestamp'),
-            self.safe_integer(ohlcv, 'open'),
-            self.safe_integer(ohlcv, 'high'),
-            self.safe_integer(ohlcv, 'low'),
-            self.safe_integer(ohlcv, 'close'),
-            self.safe_integer(ohlcv, 'volume'),
+            self.safe_timestamp_2(ohlcv, 'timestamp', 0),
+            self.safe_integer_2(ohlcv, 'open', 1),
+            self.safe_integer_2(ohlcv, 'high', 3),
+            self.safe_integer_2(ohlcv, 'low', 4),
+            self.safe_integer_2(ohlcv, 'close', 2),
+            self.safe_integer_2(ohlcv, 'volume', 5),
         ]
+
+    def parse_lower_timeframe(self, timeframeId: str):
+        timeframes = {
+            '1min': '1m',
+            '3min': '3m',
+            '5min': '5m',
+            '15min': '15m',
+            '10min': '10m',
+            '30min': '30m',
+            '1hour': '1h',
+            '2hour': '2h',
+            '4hour': '4h',
+            '6hour': '6h',
+            '12hour': '12h',
+            '1day': '1d',
+            '1week': '1w',
+        }
+        return timeframes[timeframeId]
 
     def parse_trade(self, trade: dict, market: Market) -> Trade:
         #         {'amount': '10200.00000015',
@@ -907,12 +1441,25 @@ class allin(Exchange, ImplicitAPI):
         #             'fee': '0.0112',
         #             'time': 1574922846833
         #             }
+        # future
+        # {
+        #     "id": 27699216,
+        #     "price": "1573.89",
+        #     "amount": "0.922",
+        #     "type": "buy",
+        #     "time": 1697619536.256684
+        #   }
         timestamp = self.safe_timestamp(trade, 'time')
         symbol = self.safe_string(market, 'symbol')
-        sideNumber = self.safe_integer(trade, 'side')
-        side = 'sell' if (sideNumber == 1) else 'buy'
+        side = None
+        if market['spot']:
+            sideNumber = self.safe_integer(trade, 'side')
+            side = 'sell' if (sideNumber == 1) else 'buy'
+        else:
+            sideStr = self.safe_string(trade, 'type')
+            side = 'sell' if (sideStr == 'buy') else 'buy'
         amount = self.safe_string(trade, 'amount')
-        volume = self.safe_string(trade, 'volume')
+        volume = self.safe_string(trade, 'volume', None)
         return self.safe_trade({
             'info': trade,
             'timestamp': timestamp,
@@ -938,12 +1485,21 @@ class allin(Exchange, ImplicitAPI):
         else:
             raise ExchangeError('unknown orderType: ' + self.number_to_string(type_))
 
-    def to_order_type(self, type_: str):
+    def to_spot_order_type(self, type_: str):
         # ccxt orderType to allin orderType
         if type_ == 'limit':
             return 'LIMIT'
         elif type_ == 'market':
             return 'MARKET'
+        else:
+            raise ExchangeError('unknown orderType: ' + type_)
+
+    def to_future_order_type(self, type_: str):
+        # ccxt orderType to allin orderType
+        if type_ == 'limit':
+            return 1
+        elif type_ == 'market':
+            return 2
         else:
             raise ExchangeError('unknown orderType: ' + type_)
 
@@ -959,7 +1515,7 @@ class allin(Exchange, ImplicitAPI):
         else:
             return 1
 
-    def parse_order_status(self, status: Int):
+    def parse_spot_order_status(self, status: Int):
         # Status 2 Outstanding，3 Partial filled，4 all filled，
         # 5 cancel after partial filled，
         statusStr = self.number_to_string(status)
@@ -968,8 +1524,24 @@ class allin(Exchange, ImplicitAPI):
             '2': 'open',        # 2 Outstanding
             '3': 'open',        # 3 Partial filled
             '4': 'closed',      # 4 all filled
-            '5': 'canceled',    # 5 canceled after partial filled
+            '5': 'closed',    # 5 canceled after partial filled
             '6': 'canceled',    # 6 all cancel
+        }
+        return self.safe_string(statusDict, statusStr)
+
+    def parse_future_order_status(self, status: Int):
+        # OrderStatusPending         OrderStatus = 1
+        # OrderStatusPartial         OrderStatus = 2
+        # OrderStatusFilled          OrderStatus = 3
+        # OrderStatusPartialCanceled OrderStatus = 4
+        # OrderStatusCanceled        OrderStatus = 5
+        statusStr = self.number_to_string(status)
+        statusDict = {
+            '1': 'open',        # 1 Pending
+            '2': 'open',        # 2 Partial filled
+            '3': 'closed',      # 3 all filled
+            '4': 'closed',      # 4 canceled after partial filled
+            '5': 'canceled',    # 5 all cancel
         }
         return self.safe_string(statusDict, statusStr)
 
@@ -1012,33 +1584,66 @@ class allin(Exchange, ImplicitAPI):
         #             'time': 1574922846833
         #             }]
         #     }
-        timestamp = self.safe_timestamp(order, 'create_at')
-        symbol = self.safe_string(market, 'symbol')
-        type_ = self.parse_order_type(self.safe_string(order, 'order_type'))
+        # future
+        # futureOrder = {
+        #     'code': 0,
+        #     'msg': 'success',
+        #     'data': {
+        #         'order_id': 1470445037,
+        #         'position_id': 0,
+        #         'market': 'ETHUSDT',
+        #         'type': 2,
+        #         'side': 1,
+        #         'left': '0',
+        #         'amount': '1',
+        #         'filled': '1',
+        #         'deal_fee': '0.7869',
+        #         'price': '0',
+        #         'avg_price': '1573.84',
+        #         'deal_stock': '1573.84',
+        #         'position_type': 1,
+        #         'leverage': '20',
+        #         'update_time': 1697616547.90107,
+        #         'create_time': 1697616547.901067,
+        #         'status': 3,
+        #         'stop_loss_price': '-',
+        #         'take_profit_price': '-',
+        #         'client_oid': '36341ddd362363263626',
+        #     },
+        # }
+        timestamp = self.safe_timestamp_2(order, 'create_at', 'create_time')
+        updateAt = timestamp
+        symbol = self.safe_string_2(market, 'symbol', 'market')
         side = self.parse_order_side(self.safe_integer(order, 'side'))
         price = self.safe_string(order, 'price')
-        amount = self.safe_string(order, 'quantity')
-        status = self.parse_order_status(self.safe_integer(order, 'status'))
-        average = self.safe_string(order, 'match_price')
-        filled = self.safe_string(order, 'match_qty', '0')
-        cost = self.safe_string(order, 'match_amt', '0')
-        feeCost = self.safe_string(order, 'fee', None)
+        amount = self.safe_string_2(order, 'quantity', 'amount')
+        average = self.safe_string_2(order, 'match_price', 'avg_price')
+        filled = self.safe_string_2(order, 'match_qty', 'filled', '0')
+        cost = self.safe_string_2(order, 'match_amt', 'deal_stock', '0')
+        feeCost = self.safe_string_2(order, 'fee', 'deal_fee', None)
+        type_ = self.parse_order_type(self.safe_string_2(order, 'order_type', 'type'))
         fee = None
         if feeCost is not None:
             fee = {
-                'currency': self.safe_string(order, 'quoteAsset'),
+                'currency': None,
                 'cost': feeCost,
                 'rate': None,
             }
         trades = self.safe_list(order, 'trades', [])
+        status = None
+        if market['spot']:
+            status = self.parse_spot_order_status(self.safe_integer(order, 'status'))
+        else:
+            status = self.parse_future_order_status(self.safe_integer(order, 'status'))
+            updateAt = self.safe_timestamp(order, 'update_time', timestamp)
         return self.safe_order({
             'info': order,
             'id': self.safe_string(order, 'order_id'),
             'clientOrderId': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'lastTradeTimestamp': None,
-            'lastUpdateTimestamp': None,
+            'lastTradeTimestamp': updateAt,
+            'lastUpdateTimestamp': updateAt,
             'symbol': symbol,
             'type': type_,
             'timeInForce': None,
@@ -1056,6 +1661,114 @@ class allin(Exchange, ImplicitAPI):
             'fee': fee,
             'trades': trades,
         }, market)
+
+    def parse_position(self, position: dict, market: Market) -> Position:
+        #       "position":{
+        #         "position_id":4784242,
+        #         "create_time":1699944061.968543,
+        #         "update_time":1699944061.968656,
+        #         "user_id":9108,
+        #         "market":"BTCUSDT",
+        #         "type":2,            # Position type，1 Isolated position 2 Cross position
+        #         "side":2,            #1 short 2 long
+        #         "amount":"0.0444",
+        #         "close_left":"0.0444",       # left can close
+        #         "open_price":"36341.6",
+        # "last_price":"62748.25000000",
+        # "sign_price":"56885.76824999",
+        # "index_price":"56864.00000000",
+        #         "open_margin":"6.4063",
+        #         "margin_amount":"16.1356",
+        #         "leverage":"100",
+        #         "profit_unreal":"11.0184",
+        #         "liq_price":"0",
+        #         "mainten_margin":"0.005",
+        #         "mainten_margin_amount":"8.0678",
+        #         "adl_sort":1,
+        #         "roe":"0.6828",
+        #         "margin_ratio":"",
+        #         "stop_loss_price":"-",
+        #         "take_profit_price":"-"
+        #       }
+        timestamp = self.safe_timestamp(position, 'update_time')
+        initialMarginNum = self.safe_number(position, 'open_margin')
+        maintenanceMarginString = self.safe_string(position, 'mainten_margin_amount')
+        sideNum = self.safe_integer(position, 'side')
+        modeNum = self.safe_integer(position, 'type')
+        amount = self.safe_string(position, 'amount')
+        lastPrice = self.safe_string(position, 'last_price')
+        markPrice = self.safe_string(position, 'sign_price')
+        size = market['contractSize']
+        notional = self.parse_number(Precise.string_mul(amount, lastPrice)) * size
+        profit_unreal = self.safe_number(position, 'profit_unreal')
+        collateral = initialMarginNum + profit_unreal
+        return self.safe_position({
+            'info': position,
+            'id': self.safe_integer(position, 'position_id'),
+            'symbol': market['symbol'],
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'lastUpdateTimestamp': timestamp,
+            'initialMargin': initialMarginNum,
+            'initialMarginPercentage': None,
+            'maintenanceMargin': self.parse_number(maintenanceMarginString),
+            'maintenanceMarginPercentage': self.safe_integer(position, 'mainten_margin'),
+            'entryPrice': self.safe_float(position, 'open_price'),
+            'notional': notional,
+            'leverage': self.safe_number(position, 'leverage'),
+            'unrealizedPnl': self.safe_float(position, 'profit_unreal'),
+            'realizedPnl': None,
+            'contracts': self.parse_number(amount),  # in USD for inverse swaps
+            'contractSize': self.safe_number(market, 'contractSize'),
+            'marginRatio': self.safe_number(position, 'margin_ratio'),
+            'liquidationPrice': self.safe_number(position, 'liq_price'),
+            'markPrice': self.parse_number(markPrice),
+            'lastPrice': self.parse_number(lastPrice),
+            'collateral': collateral,
+            'marginMode': self.parse_leverage_mode(modeNum),
+            'side': self.parse_position_side(sideNum),
+            'percentage': self.safe_float(position, 'roe'),
+            'stopLossPrice': self.safe_number(position, 'stop_loss_price'),
+            'takeProfitPrice': self.safe_number(position, 'take_profit_price'),
+        })
+
+    def parse_position_side(self, sideNum: Int):
+        if sideNum == 1:
+            return 'short'
+        else:
+            return 'long'
+
+    def to_leverage_mode(self, marginMode: str):
+        if marginMode == 'isolated':
+            return 1
+        else:
+            return 2
+
+    def parse_leverage_mode(self, modeNum: Int):
+        if modeNum == 1:
+            return 'isolated'
+        else:
+            return 'cross'
+
+    def parse_leverage(self, leverage, market) -> Leverage:
+        # {
+        #     "code": 0,
+        #     "msg": "success",
+        #     "data": {
+        #       "leverage": "100",
+        #       "position_type": 1
+        #     }
+        #   }
+        data = self.safe_dict(leverage, 'data')
+        leverageNum = self.safe_integer(data, 'leverage')
+        modeNum = self.safe_integer(data, 'position_type')
+        return {
+            'info': leverage,
+            'symbol': market['symbol'],
+            'marginMode': self.parse_leverage_mode(modeNum),
+            'longLeverage': leverageNum,
+            'shortLeverage': leverageNum,
+        }
 
     def handle_errors(self, statusCode: Int, statusText: str, url: str, method: str, responseHeaders: dict, responseBody: str, response: Any, requestHeaders: Any, requestBody: Any):
         if statusCode >= 400:

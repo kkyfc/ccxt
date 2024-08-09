@@ -13,11 +13,11 @@ import ccxt.async_support as ccxt  # noqa: E402
 
 async def example():
     exchange = ccxt.allin({
-        'apiKey': 'MG9pDxDRRRJZkuFDAVK6RZyiexsXKN',
-        'secret': 'jN2j4gnUPyaOD3wVDoOZpyq5s8ymCgYN4khCwp2aEnsOf4W1na',
-        'options': {
-            'defaultType': 'spot',
-        },
+        "apiKey": "6jAuGb4cCulmdaxx2D8uCBfwZE400g",
+        "secret": "8fh5YmDr01IXeq4xqWpQAGf6u2UQZynpWGJwz7cODKnf0QFNvt",
+        "options": {
+            "defaultType": "future"
+        }
     })
     exchange.set_sandbox_mode(True)
     await exchange.load_markets()

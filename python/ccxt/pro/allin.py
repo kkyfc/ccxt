@@ -4,12 +4,12 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 import ccxt.async_support
-from ccxt.async_support.base.ws.cache import ArrayCacheByTimestamp
+from ccxt.async_support.base.ws.cache import ArrayCacheBySymbolBySide, ArrayCacheByTimestamp
 import hashlib
-from ccxt.base.types import Balances, Int, Order, OrderBook, Str, Ticker, Tickers
+from ccxt.base.types import Balances, Int, Order, OrderBook, Position, Str, Ticker, Tickers
 from ccxt.async_support.base.ws.client import Client
 from typing import List
-from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import BaseError
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import ArgumentsRequired
 
@@ -34,7 +34,7 @@ class allin(ccxt.async_support.allin):
                 'watchOrders': True,
                 'watchOrdersForSymbols': False,
                 'watchPositions': False,
-                'watchTicker': False,
+                'watchTicker': True,
                 'watchTickers': False,
                 'watchTrades': True,
                 'watchTradesForSymbols': False,
@@ -43,17 +43,15 @@ class allin(ccxt.async_support.allin):
                 'test': {
                     'ws': {
                         'spot': 'wss://ws.allintest.pro/ws',
-                        'futures': 'wss://ws.allintest.pro/ws',
-                        'public': 'wss://ws.allintest.pro/ws',
-                        'private': 'wss://ws.allintest.pro/ws',
+                        'future': 'wss://api.allintest.pro/futures/wsf',
+                        'swap': 'wss://api.allintest.pro/futures/wsf',
                     },
                 },
                 'api': {
                     'ws': {
                         'spot': 'wss://ws.allintest.pro/ws',
-                        'futures': 'wss://ws.allintest.pro/ws',
-                        'public': 'wss://ws.allintest.pro/ws',
-                        'private': 'wss://ws.allintest.pro/ws',
+                        'future': 'wss://api.allintest.pro/futures/wsf',
+                        'swap': 'wss://api.allintest.pro/futures/wsf',
                     },
                 },
                 'doc': 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',
@@ -97,18 +95,32 @@ class allin(ccxt.async_support.allin):
         await self.load_markets()
         market = self.market(symbol)
         marketId = market['id']
-        type_ = 'spot'
+        type_ = None
+        request = None
+        merge = None
+        if market['spot']:
+            type_ = 'spot'
+            merge = 'step0'
+            request = {
+                'method': 'subscribe.depth',
+                'params': {
+                    'market': marketId,
+                    'merge': merge,
+                },
+            }
+        else:
+            merge = '0'
+            type_ = 'future'
+            request = {
+                'method': 'subscribe.depth',
+                'params': {
+                    'market': marketId,
+                    'merge': merge,
+                },
+            }
         url = self.urls['api']['ws'][type_]
         reqId = self.request_id()
-        merge = 'step0'
-        request = {
-            'method': 'subscribe.depth',
-            'params': {
-                'market': marketId,
-                'merge': merge,
-            },
-        }
-        messageHash = 'depth:' + merge + ':' + marketId  # 'topic': 'depth:step1:BTC-USDT'
+        messageHash = 'depth:' + ':' + marketId  # 'topic': 'depth:step1:BTC-USDT'
         request['id'] = reqId
         orderbook = await self.watch(url, messageHash, request, messageHash, True)
         return orderbook.limit()
@@ -185,8 +197,10 @@ class allin(ccxt.async_support.allin):
         :see: https://allinexchange.github.io/spot-docs/v1/en/#subscription-topic
         """
         await self.load_markets()
-        type_ = 'spot'
-        url = self.urls['api']['ws'][type_]
+        currentType = self.safe_string(params, 'defaultType', None)
+        if not currentType:
+            currentType = self.options['defaultType']
+        url = self.urls['api']['ws'][currentType]
         await self.authenticate(url)
         messageHash = 'update.asset'
         request = {
@@ -196,6 +210,25 @@ class allin(ccxt.async_support.allin):
         }
         balances = await self.watch(url, messageHash, request, messageHash)
         return balances
+
+    async def watch_positions(self, symbols: List[str] = None, since: Int = None, limit: Int = None, params={}) -> List[Position]:
+        currentType = self.safe_string(params, 'defaultType', None)
+        if not currentType:
+            currentType = self.options['defaultType']
+        await self.load_markets()
+        if currentType == 'future' or currentType == 'swap':
+            messageHash = 'update.position'
+            url = self.urls['api']['ws'][currentType]
+            await self.authenticate(url)
+            request = {
+                'method': 'subscribe.position',
+                'id': self.request_id(),
+                'params': {},
+            }
+            positions = await self.watch(url, messageHash, request, messageHash)
+            return positions
+        else:
+            raise BaseError(currentType + 'market type no position')
 
     async def watch_orders(self, symbol: Str = None, since: Int = None, limit: Int = None, params={}) -> List[Order]:
         """
@@ -207,22 +240,38 @@ class allin(ccxt.async_support.allin):
         :param dict [params]: extra parameters specific to the exchange API endpoint
         :returns dict[]: a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
         """
-        if symbol is None:
+        currentType = self.safe_string(params, 'defaultType', None)
+        type_ = None
+        marketId = None
+        messageHash = None
+        if symbol is None and currentType == 'spot':
             raise ArgumentsRequired(self.id + ' watchOrderBook() requires a symbol argument')
-        await self.load_markets()
-        market = self.market(symbol)
-        marketId = market['id']
-        messageHash = 'orders:' + marketId
-        type_ = 'spot'
+        elif symbol is not None:
+            await self.load_markets()
+            market = self.market(symbol)
+            marketId = market['id']
+            type_ = market['type']
+            messageHash = 'orders:' + marketId
+        else:
+            type_ = currentType
+            messageHash = 'orders:__ALL__'
         url = self.urls['api']['ws'][type_]
         await self.authenticate(url)
-        request = {
-            'method': 'subscribe.orders',
-            'params': {
-                'market': marketId,
-            },
-            'id': self.request_id(),
-        }
+        request = None
+        if type_ == 'spot':
+            request = {
+                'method': 'subscribe.orders',
+                'params': {},
+                'id': self.request_id(),
+            }
+        else:
+            request = {
+                'method': 'subscribe.order',
+                'params': {},
+                'id': self.request_id(),
+            }
+        if marketId is not None:
+            request['params']['market'] = marketId
         orders = await self.watch(url, messageHash, request, messageHash, True)
         return orders
 
@@ -240,10 +289,12 @@ class allin(ccxt.async_support.allin):
         await self.load_markets()
         market = self.market(symbol)
         marketId = market['id']
-        type_ = 'spot'
+        type_ = market['type']
         interval = self.safe_string(self.timeframes, timeframe, timeframe)
         url = self.urls['api']['ws'][type_]
         reqId = self.request_id()
+        if not market['spot']:
+            interval = str(interval).lower()
         messageHash = 'kline:' + interval + ':' + marketId
         request = {
             'method': 'subscribe.kline',
@@ -259,23 +310,26 @@ class allin(ccxt.async_support.allin):
     async def authenticate(self, url, params={}):
         self.check_required_credentials()
         messageHash = 'sign'
+        currentType = self.safe_string(params, 'defaultType', None)
+        if not currentType:
+            currentType = self.options['defaultType']
         client = self.client(url)
         future = client.future(messageHash)
         authenticated = self.safe_value(client.subscriptions, messageHash)
-        result = {}
+        request = {}
         if authenticated is None:
             nonce = str(self.nonce())
             ts = nonce
             client_id = self.apiKey
             s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts
             v = self.hmac(self.encode(s), self.encode(self.secret), hashlib.sha256)
-            result = {'method': 'sign',
-                'id': self.request_id(),
-                'params': {'client_id': client_id,
-                    'ts': ts,
-                    'nonce': nonce,
-                    'sign': v}}
-            self.watch(url, messageHash, result, messageHash)
+            request = {'method': 'sign',
+                       'id': self.request_id(),
+                       'params': {'client_id': client_id,
+                                  'ts': ts,
+                                  'nonce': nonce,
+                                  'sign': v}}
+            self.watch(url, messageHash, request, messageHash)
         return await future
 
     def handle_order_book(self, client: Client, message):
@@ -284,37 +338,69 @@ class allin(ccxt.async_support.allin):
         #     'result': {'data':
         #         {'asks': [{'price': '68000.0', 'quantity': '0.357100'},
         #             {'price': '68123.5', 'quantity': '0.230000'}],
-        #         'bids': [{'price': '67890.9', 'quantity': '0.002000'},
+        #            'bids': [{'price': '67890.9', 'quantity': '0.002000'},
         #             {'price': '67890.4', 'quantity': '0.001000'},
         #             {'price': '65000.2', 'quantity': '0.300000'},
         #             {'price': '62000.0', 'quantity': '1.999000'},
         #             {'price': '60000.0', 'quantity': '1.100000'},
         #             {'price': '8850.2', 'quantity': '0.200000'}],
-        #         'symbol': 'BTC-USDT',
-        #         'timestamp': 1721550307627,
-        #         'topic': 'depth:step1:BTC-USDT',
-        #         'tpp': 7},
-        #     'merge': 'step1'},
+        #              'symbol': 'BTC-USDT',
+        #              'timestamp': 1721550307627,
+        #              'topic': 'depth:step1:BTC-USDT',
+        #              'tpp': 7},
+        #          'merge': 'step1'},
         #     'error': null}
+        # future
+        # {
+        #     "id":0,
+        #     "method":"update.depth",
+        #     "result":{
+        #       "asks":[
+        #         [
+        #           "36341.6",
+        #           "0.0444"
+        #         ]
+        #       ],
+        #       "bids":[
+        #         [
+        #           "36341.25",
+        #           "0.0511"
+        #         ]
+        #       ],
+        #       "index_price":"36612.36",
+        #       "last":"36341.59",
+        #       "market":"BTCUSDT",
+        #       "sign_price":"36589.76",
+        #       "time":1699944061967
+        #     },
+        #     "error":null
+        #   }
         result = self.safe_dict(message, 'result')
-        abData = self.safe_dict(result, 'data')
-        marketId = self.safe_string(abData, 'symbol')
+        marketId = self.safe_string(result, 'market', None)
+        timestamp = None
+        abData = None
+        if marketId is None:
+            # spot
+            abData = self.safe_dict(result, 'data')
+            marketId = self.safe_string(abData, 'symbol')
+            timestamp = self.safe_integer(abData, 'timestamp')
+        else:
+            # future
+            abData = result
+            marketId = self.safe_string(abData, 'market')
+            timestamp = self.safe_integer(abData, 'time')
         market = self.safe_market(marketId, None, None)
-        timestamp = self.safe_integer(abData, 'timestamp')
-        messageHash = self.safe_string(abData, 'topic')
+        messageHash = 'depth:' + ':' + marketId
         symbol = market['symbol']
         if not (symbol in self.orderbooks):
             self.orderbooks[symbol] = self.order_book()
             self.orderbooks[symbol]['symbol'] = symbol
         orderbook = self.orderbooks[symbol]
-        # asks = self.safe_list(abData, 'asks', [])
-        # bids = self.safe_list(abData, 'bids', [])
-        # self.handle_deltas(orderbook['asks'], asks)
-        # self.handle_deltas(orderbook['bids'], bids)
-        # orderbook['timestamp'] = timestamp
-        # orderbook['datetime'] = self.iso8601(timestamp)
-        # self.orderbooks[symbol] = orderbook
-        snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+        snapshot = None
+        if market['spot']:
+            snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+        else:
+            snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 0, 1)
         orderbook.reset(snapshot)
         self.orderbooks[symbol] = orderbook
         client.resolve(orderbook, messageHash)
@@ -355,16 +441,59 @@ class allin(ccxt.async_support.allin):
         #         'market': 'BTC-USDT',
         #     },
         # }
+        # future
+        # {
+        #     "id":0,
+        #     "method":"update.state",
+        #     "result": {
+        #       "1000SHIBUSDT": {
+        #         "market": "1000SHIBUSDT",
+        #         "amount": "35226256.573504",
+        #         "high":"0.009001",
+        #         "last": "0.008607",
+        #         "low": "0.008324",
+        #         "open": "0.008864",
+        #         "period": 86400,
+        #         "volume":"4036517772",
+        #         "change": "-0.0289936823104693",
+        #         "funding_time": 79,
+        #         "position_amount": "0",
+        #         "funding_rate_last": "0.00092889",
+        #         "funding_rate_next":"0.00078062",
+        #         "funding_rate_predict": "0.00059084",
+        #         "insurance": "12920.37897885999447286856",
+        #         "sign_price": "0.008607",
+        #         "index_price": "0.008606",
+        #         "sell_total":"46470921",
+        #         "buy_total": "43420303"
+        #       }
+        #     },
+        #     "error":null
+        #   }
         result = self.safe_dict(message, 'result')
         tickerData = self.safe_dict(result, 'data')
-        symbolId = self.safe_string(tickerData, 'symbol')
-        market = self.safe_market(symbolId, None, None)
-        tickerData['timestamp'] = self.safe_timestamp(tickerData, 'timestamp')
-        symbol = market['symbol']
-        messageHash = 'update.quote:' + symbolId
-        ticker = self.parse_ticker(tickerData, market)
-        self.tickers[symbol] = ticker
-        client.resolve(ticker, messageHash)
+        if tickerData is None:
+            # future
+            keys = list(result.keys())
+            for i in range(0, len(keys)):
+                symbolId = keys[i]
+                messageHash = 'update.quote:' + symbolId
+                market = self.safe_market(symbolId)
+                symbol = market['symbol']
+                data = result[symbolId]
+                ticker = self.parse_ticker(data, market)
+                self.tickers[symbol] = ticker
+                client.resolve(ticker, messageHash)
+        else:
+            # spot
+            symbolId = self.safe_string(tickerData, 'symbol')
+            market = self.safe_market(symbolId, None, None)
+            tickerData['timestamp'] = self.safe_timestamp(tickerData, 'timestamp')
+            symbol = market['symbol']
+            messageHash = 'update.quote:' + symbolId
+            ticker = self.parse_ticker(tickerData, market)
+            self.tickers[symbol] = ticker
+            client.resolve(ticker, messageHash)
 
     def handle_tickers(self, client: Client, message):
         # ticker = {
@@ -425,17 +554,38 @@ class allin(ccxt.async_support.allin):
         #         'period': '1Min',
         #     },  # 结果集
         # }
+        # future
+        # future = {'id': 0,
+        #     'method':
+        #     'update.kline',
+        #     'result': {'data': [[1723034940, '65517.74', '65517.74', '65517.74', '65517.74', '0', '0', 'BTCUSDT']],
+        #         'market': 'BTCUSDT',
+        #         'period': '1min'},
+        #     'error': null}
         result = self.safe_dict(message, 'result')
-        klineData = self.safe_dict(result, 'data')
-        if not klineData:
+        if result is None:
             return
-        marketId = self.safe_string(klineData, 'symbol')
+        klineData = self.safe_dict(result, 'data')
+        marketId = self.safe_string_2(klineData, 'symbol', 'market', None)
+        if marketId is None:
+            # future
+            marketId = self.safe_string(result, 'market')
         market = self.safe_market(marketId, None, None)
         symbol = market['symbol']
-        messageHash = self.safe_string(klineData, 'topic')
-        ticks = self.safe_list(klineData, 'ticks')
-        timeframeId = self.safe_string(klineData, 'type')
-        timeframe = self.find_timeframe(timeframeId)
+        messageHash = None
+        ticks = None
+        timeframeId = None
+        timeframe = None
+        if market['spot']:
+            ticks = self.safe_list(klineData, 'ticks')
+            timeframeId = self.safe_string(klineData, 'type')
+            messageHash = self.safe_string(klineData, 'topic')
+            timeframe = self.find_timeframe(timeframeId)
+        else:
+            ticks = self.safe_list(result, 'data')
+            timeframeId = self.safe_string(result, 'period')
+            timeframe = self.parseLowerTimeframe(timeframeId)
+            messageHash = 'kline:' + str(timeframeId).lower() + ':' + marketId
         ohlcvsByTimeframe = self.safe_value(self.ohlcvs, symbol)
         if ohlcvsByTimeframe is None:
             self.ohlcvs[symbol] = {}
@@ -446,14 +596,7 @@ class allin(ccxt.async_support.allin):
             self.ohlcvs[symbol][timeframe] = stored
         for i in range(0, len(ticks)):
             tick = ticks[i]
-            parsed = [
-                self.safe_timestamp(tick, 'timestamp'),
-                self.safe_float(tick, 'open'),
-                self.safe_float(tick, 'high'),
-                self.safe_float(tick, 'low'),
-                self.safe_float(tick, 'close'),
-                self.safe_float(tick, 'volume'),
-            ]
+            parsed = self.parse_ohlcv(tick, market)
             stored.append(parsed)
         client.resolve(stored, messageHash)
 
@@ -486,47 +629,43 @@ class allin(ccxt.async_support.allin):
         #     },
         #     'error': null,
         # }
+        # future
+        # futureOrder = {'id': 0,
+        #     'method': 'update.order',
+        #     'result': {'order_id': 5034339,
+        #         'position_id': 0,
+        #         'market': 'BTCUSDT',
+        #         'type': 1,
+        #         'side': 1,
+        #         'left': '0.0000',
+        #         'amount': '0.0400',
+        #         'filled': '0.04',
+        #         'deal_fee': '0.9583',
+        #         'price': '56000',
+        #         'avg_price': '59898.36',
+        #         'deal_stock': '2395.9344',
+        #         'position_type': 2,
+        #         'leverage': '100',
+        #         'update_time': 1723131121.719404,
+        #         'create_time': 1723131121.719389,
+        #         'status': 3,
+        #         'stop_loss_price': '-',
+        #         'take_profit_price': '-'},
+        #     'error': None}
         result = self.safe_dict(message, 'result')
-        timestamp = self.safe_timestamp(result, 'timestamp')
-        allinOrderStatus = self.safe_integer(result, 'status')
-        allinSymbol = self.safe_string(result, 'symbol')
+        allinSymbol = self.safe_string_2(result, 'symbol', 'market')
         market = self.safe_market(allinSymbol)
         if not market:
             return
-        allinOrderType = self.force_string(self.safe_integer(result, 'order_type'))
-        allinOrderSide = self.safe_integer(result, 'side')
-        messageHash = self.safe_string(result, 'topic')
-        cost = self.safe_string(result, 'match_amt', '0')
-        order = {
-            'id': self.safe_string(result, 'order_id'),
-            'clientOrderId': self.safe_string(result, 'trade_no'),
-            'datetime': self.iso8601(timestamp),
-            'timestamp': timestamp,
-            'lastTradeTimestamp': timestamp,
-            'lastUpdateTimestamp': timestamp,
-            'status': self.parse_order_status(allinOrderStatus),
-            'symbol': market['symbol'],
-            'type': self.parseOrderType(allinOrderType),
-            'timeInForce': None,
-            'side': self.parseOrderSide(allinOrderSide),
-            'price': self.safe_float(result, 'price'),
-            'average': self.safe_float(result, 'match_price'),
-            'amount': self.safe_float(result, 'quantity'),
-            'filled': self.safe_float(result, 'match_qty'),
-            'remaining': self.safe_float(result, 'left'),
-            'stopPrice': None,
-            'triggerPrice': None,
-            'takeProfitPrice': None,
-            'stopLossPrice': None,
-            'cost': cost,
-            'trades': [],
-            'fee': None,
-            'reduceOnly': None,
-            'postOnly': None,
-            'info': result,
-        }
+        order = self.parse_order(result, market)
+        messageHashAll = None
+        messageHash = 'orders:' + market['id']
+        if market['spot']:
+            messageHashAll = 'orders:__ALL__'
         safeOrder = self.safe_order(order, market)
         client.resolve([safeOrder], messageHash)
+        if messageHashAll:
+            client.resolve([safeOrder], messageHashAll)
 
     def handle_balance(self, client: Client, message):
         # {
@@ -541,24 +680,104 @@ class allin(ccxt.async_support.allin):
         #         "total": "1000000"
         #     }  #结果集
         # }
+        # future
+        # {
+        #     "id":0,
+        #     "method":"update.asset",
+        #     "result":{
+        #       "USDT":{
+        #         "available":"10320.9887",
+        #         "frozen":"0",
+        #         "margin":"16.1356",
+        #         "balance_total":"10320.9887",
+        #         "profit_unreal":"11.0315",
+        #         "transfer":"10097.1501",
+        #         "bonus":"223.8386"
+        #       }
+        #     },
+        #     "error":null
+        #   }
+        currentType = self.safe_string(self.options, 'defaultType', None)
         messageHash = 'update.asset'
-        result = self.safe_dict(message, 'result')
-        token = self.safe_string(result, 'symbol')
         if self.balance is None:
             self.balance = {}
         if not self.safe_dict(self.balance, 'info'):
             self.balance['info'] = {}
-        self.balance['info'][token] = result
-        timestamp = self.milliseconds()
-        self.balance['timestamp'] = timestamp
-        self.balance['datetime'] = self.iso8601(timestamp)
-        self.balance[token] = {
-            'free': self.safe_string(result, 'available'),
-            'total': self.safe_string(result, 'total'),
-            'used': self.safe_string(result, 'freeze'),
-        }
+        if currentType == 'spot':
+            result = self.safe_dict(message, 'result')
+            token = self.safe_string(result, 'symbol')
+            self.balance['info'][token] = result
+            timestamp = self.milliseconds()
+            self.balance['timestamp'] = timestamp
+            self.balance['datetime'] = self.iso8601(timestamp)
+            self.balance[token] = {
+                'free': self.safe_string(result, 'available'),
+                'total': self.safe_string(result, 'total'),
+                'used': self.safe_string(result, 'freeze'),
+            }
+        else:
+            originBalances = self.safe_dict(message, 'result')
+            keys = list(originBalances.keys())
+            for i in range(0, len(keys)):
+                key = keys[i]
+                originBalance = originBalances[key]
+                symbol = key
+                used = self.safe_string(originBalance, 'frozen')
+                total = self.safe_string(originBalance, 'balance_total')
+                free = self.safe_string(originBalance, 'available')
+                self.balance[symbol] = {
+                    'free': free,
+                    'used': used,
+                    'total': total,
+                    'debt': 0,  # ???
+                }
         self.balance = self.safe_balance(self.balance)
         client.resolve(self.balance, messageHash)
+
+    def handle_positions(self, client: Client, message):
+        # {
+        #     "id":0,
+        #     "method":"update.position",
+        #     "result":{
+        #       "event":1,
+        #       "position":{
+        #         "position_id":4784242,
+        #         "create_time":1699944061.968543,
+        #         "update_time":1699944061.968656,
+        #         "user_id":9108,
+        #         "market":"BTCUSDT",
+        #         "type":2,
+        #         "side":2,
+        #         "amount":"0.0444",
+        #         "close_left":"0.0444",
+        #         "open_price":"36341.6",
+        #         "open_margin":"6.4063",
+        #         "margin_amount":"16.1356",
+        #         "leverage":"100",
+        #         "profit_unreal":"11.0184",
+        #         "liq_price":"0",
+        #         "mainten_margin":"0.005",
+        #         "mainten_margin_amount":"8.0678",
+        #         "adl_sort":1,
+        #         "roe":"0.6828",
+        #         "margin_ratio":"",
+        #         "stop_loss_price":"-",
+        #         "take_profit_price":"-"
+        #       }
+        #     },
+        #     "error":null
+        #   }
+        result = self.safe_dict(message, 'result')
+        data = self.safe_dict(result, 'position')
+        marketId = data['market']
+        market = self.safe_market(marketId)
+        messageHash = 'update.position'
+        if self.positions is None:
+            self.positions = ArrayCacheBySymbolBySide()
+        cache = self.positions
+        position = self.parse_position(data, market)
+        cache.append(position)
+        client.resolve([position], messageHash)
 
     def ping(self, client):
         return {
@@ -603,26 +822,42 @@ class allin(ccxt.async_support.allin):
         #         'tpp': 7},
         #     'merge': 'step1'},
         #     'error': null}
+        # future
+        # {'id': 1,
+        #     'method': 'subscribe.sign',
+        #     'result': None,
+        #     'error': {'code': 20015, 'msg': 'system error'}
+        # }
         error = message['error']
         if error:
-            raise ExchangeError(self.id + ' ' + error)
+            code = self.safe_string(error, 'code', 'default')
+            errorStr = None
+            if code is not None:
+                errorStr = self.safe_string(error, 'msg')
+                self.throw_exactly_matched_exception(self.exceptions['exact'], code, errorStr)
+            else:
+                code = ' '
+                errorStr = error
+                self.throw_exactly_matched_exception(self.exceptions['exact'], code, errorStr)
         return False
 
     def handle_message(self, client: Client, message):
         error = self.safe_value(message, 'error')
         if error:
             self.handle_error_message(client, message)
+        # 'subscribe.depth': self.handle_order_book,
+        # 'subscribe.kline': self.handle_ohlcv,
         methodsDict: dict = {
             'update.depth': self.handle_order_book,
-            'subscribe.depth': self.handle_order_book,
-            'subscribe.kline': self.handle_ohlcv,
             'update.kline': self.handle_ohlcv,
             'update.orders': self.handle_order,
+            'update.order': self.handle_order,
             'update.asset': self.handle_balance,
             'ping': self.handle_pong,
             'sign': self.handle_authenticate,
             'update.quote': self.handle_ticker,
             'update.quotes': self.handle_tickers,
+            'update.position': self.handle_positions,
         }
         methodStr = self.safe_string(message, 'method')
         method = self.safe_value(methodsDict, methodStr)
