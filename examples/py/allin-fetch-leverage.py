@@ -22,8 +22,8 @@ async def example():
     exchange.set_sandbox_mode(True)
     await exchange.load_markets()
     exchange.verbose = True  # uncomment for debugging purposes if necessary
-    fetch_leverage = await exchange.fetch_leverage('BTC/USDT:USDT', {})
-    # fetch_leverage = await exchange.set_leverage(20, 'BTC/USDT:USDT', {})
+    # fetch_leverage = await exchange.fetch_leverage('ETH/USDT:USDT', {})
+    fetch_leverage = await exchange.set_leverage(5, 'BTC/USDT:USDT', {'marginMode': 'cross'})
     print(fetch_leverage)
 
     await exchange.close()

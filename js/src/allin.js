@@ -6,7 +6,7 @@
 
 //  ---------------------------------------------------------------------------
 import Exchange from './abstract/allin.js';
-import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol, OperationFailed, BaseError, InsufficientFunds } from './base/errors.js';
+import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError, OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol, OperationFailed, BaseError, InsufficientFunds, OperationRejected, OrderNotFillable, InvalidOrder } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 //  ---------------------------------------------------------------------------
@@ -267,7 +267,7 @@ export default class allin extends Exchange {
                     '1010019': BadRequest,
                     '1010020': BadRequest,
                     '1010022': BadRequest,
-                    '1010017': BadRequest,
+                    '1010017': OrderNotFillable,
                     '1010023': BadRequest,
                     '1010318': BadRequest,
                     '1010030': OrderNotFound,
@@ -278,9 +278,41 @@ export default class allin extends Exchange {
                     '1010364': BadRequest,
                     'default': BaseError,
                     // future
-                    '20015': ExchangeError,
                     '13128': InsufficientFunds,
-                    '20010': BadRequest, // price illegal
+                    '13122': OrderNotFound,
+                    '10013': OrderNotFound,
+                    '10029': OrderNotFillable,
+                    '10056': ExchangeError,
+                    '10057': ExchangeError,
+                    '10058': BadRequest,
+                    '10059': InsufficientFunds,
+                    '10060': ExchangeError,
+                    '10061': BadRequest,
+                    '10062': InvalidOrder,
+                    '10063': InvalidOrder,
+                    '13127': InvalidOrder,
+                    '10064': OperationRejected,
+                    '20001': BadRequest,
+                    '20002': BadRequest,
+                    '20003': BadSymbol,
+                    '20004': BadRequest,
+                    '20005': BadRequest,
+                    '20006': BadRequest,
+                    '20007': BadRequest,
+                    '20008': BadRequest,
+                    '20010': BadRequest,
+                    '20011': BadRequest,
+                    '20012': BadRequest,
+                    '20013': BadRequest,
+                    '20014': BadRequest,
+                    '20015': BadRequest,
+                    '20016': BadRequest,
+                    '20017': BadRequest,
+                    '20018': BadRequest,
+                    '20019': BadRequest,
+                    '20020': BadRequest,
+                    '20021': BadRequest,
+                    '20022': BadRequest, // step illegal
                 },
             },
         });
@@ -1215,18 +1247,38 @@ export default class allin extends Exchange {
         //         'ticker': 'BTC-USDT',
         //         'trade_no': '40545292203741231233614' },
         //     'time': 1720775985 };
+        // future
+        // {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets();
         const market = this.market(symbol);
-        const request = {
-            'symbol': market['id'],
-            'order_id': id,
-        };
-        const response = await this.spotPrivatePostOpenV1OrdersCancel(request);
-        const orderData = this.safeDict(response, 'data');
-        return this.parseOrder(orderData, market);
+        let request = undefined;
+        let response = undefined;
+        if (market['spot']) {
+            request = {
+                'symbol': market['id'],
+                'order_id': id,
+            };
+            response = await this.spotPrivatePostOpenV1OrdersCancel(request);
+            const orderData = this.safeDict(response, 'data');
+            return this.parseOrder(orderData, market);
+        }
+        else {
+            request = {
+                'market': market['id'],
+                'order_id': id,
+            };
+            response = await this.futurePrivatePostOpenApiV2OrderCancel(request);
+            return {
+                'info': response,
+                'id': id,
+                'symbol': symbol,
+                'status': 'open',
+                'timestamp': this.safeTimestamp(response, 'time'),
+            };
+        }
     }
     createSpotOrderRequest(symbol, type, side, amount, price, params, market) {
         const orderType = this.toSpotOrderType(type);
@@ -1526,7 +1578,7 @@ export default class allin extends Exchange {
         //     "type": "buy",
         //     "time": 1697619536.256684
         //   }
-        const timestamp = this.safeTimestamp(trade, 'time');
+        const timestamp = this.safeTimestamp2(trade, 'time', 'timestamp');
         const symbol = this.safeString(market, 'symbol');
         let side = undefined;
         if (market['spot']) {
@@ -1883,6 +1935,8 @@ export default class allin extends Exchange {
         //         { 'amount': '0', 'freeze': '0', 'symbol': 'TRX' },
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
+        // feture
+        // {'code': '10013', 'msg': 'order is not exist', 'data': None, 'time': '1723189930'}
         if (response === undefined) {
             return undefined; // fallback to default error handler
         }
@@ -1893,6 +1947,8 @@ export default class allin extends Exchange {
             const msg = this.id + ', code: ' + codeStr + ', ' + messageNew;
             this.log(response);
             this.throwExactlyMatchedException(this.exceptions['exact'], codeStr, msg);
+            // Make sure to throw an exception.
+            // throw new ExchangeError (msg);
         }
     }
 }

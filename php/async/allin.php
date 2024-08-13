@@ -269,7 +269,7 @@ class allin extends Exchange {
                     '1010019' => '\\ccxt\\BadRequest',          // market price empty
                     '1010020' => '\\ccxt\\BadRequest',          // order_type must 1 or 3
                     '1010022' => '\\ccxt\\BadRequest',          // Below the minimum purchase price
-                    '1010017' => '\\ccxt\\BadRequest',          // Order amount cannot be less than %s
+                    '1010017' => '\\ccxt\\OrderNotFillable',          // Order amount cannot be less than %s
                     '1010023' => '\\ccxt\\BadRequest',          // Below the minimum sell price
                     '1010318' => '\\ccxt\\BadRequest',          // client_oid must be 21 in length, and must be numbers
                     '1010030' => '\\ccxt\\OrderNotFound',       // order_id not exists
@@ -280,9 +280,41 @@ class allin extends Exchange {
                     '1010364' => '\\ccxt\\BadRequest',          // symbol count cannot be more than 10
                     'default' => '\\ccxt\\BaseError',
                     // future
-                    '20015' => '\\ccxt\\ExchangeError',
                     '13128' => '\\ccxt\\InsufficientFunds',     // balance not enough
-                    '20010' => '\\ccxt\\BadRequest',            // price illegal
+                    '13122' => '\\ccxt\\OrderNotFound',
+                    '10013' => '\\ccxt\\OrderNotFound',
+                    '10029' => '\\ccxt\\OrderNotFillable',      // order count over limit
+                    '10056' => '\\ccxt\\ExchangeError',         // depth insufficient
+                    '10057' => '\\ccxt\\ExchangeError',         // failure to collect reward
+                    '10058' => '\\ccxt\\BadRequest',            // this event has reached its maximum number of participants
+                    '10059' => '\\ccxt\\InsufficientFunds',     // this reward has been issued, please pay attention to the next activity
+                    '10060' => '\\ccxt\\ExchangeError',         // activity has not started yet
+                    '10061' => '\\ccxt\\BadRequest',            // position is not exist
+                    '10062' => '\\ccxt\\InvalidOrder',          // the order quantity is too smal
+                    '10063' => '\\ccxt\\InvalidOrder',          // failure to fulfil activity requirements
+                    '13127' => '\\ccxt\\InvalidOrder',          // amount exceed limit
+                    '10064' => '\\ccxt\\OperationRejected',     // ban trade
+                    '20001' => '\\ccxt\\BadRequest',            // leverage illega
+                    '20002' => '\\ccxt\\BadRequest',            // market  illegal
+                    '20003' => '\\ccxt\\BadSymbol',             // position type illegal
+                    '20004' => '\\ccxt\\BadRequest',            // adjust margin type illegal
+                    '20005' => '\\ccxt\\BadRequest',            // order side illegal
+                    '20006' => '\\ccxt\\BadRequest',            // order id illegal
+                    '20007' => '\\ccxt\\BadRequest',            // position id illegal
+                    '20008' => '\\ccxt\\BadRequest',            // quantity illegal
+                    '20010' => '\\ccxt\\BadRequest',            // price illegal,
+                    '20011' => '\\ccxt\\BadRequest',            // stop loss price type illegal
+                    '20012' => '\\ccxt\\BadRequest',            // stop loss price illegal
+                    '20013' => '\\ccxt\\BadRequest',            // take profit price type illegal
+                    '20014' => '\\ccxt\\BadRequest',            // take profit price illegal
+                    '20015' => '\\ccxt\\BadRequest',            // page illegal
+                    '20016' => '\\ccxt\\BadRequest',            // page size illegal
+                    '20017' => '\\ccxt\\BadRequest',            // start time illegal
+                    '20018' => '\\ccxt\\BadRequest',            // end time illegal
+                    '20019' => '\\ccxt\\BadRequest',            // kline type illegal
+                    '20020' => '\\ccxt\\BadRequest',            // stop price illegal
+                    '20021' => '\\ccxt\\BadRequest',            // current price illegal
+                    '20022' => '\\ccxt\\BadRequest',            // step illegal
                 ),
             ),
         ));
@@ -1231,18 +1263,37 @@ class allin extends Exchange {
             //         'ticker' => 'BTC-USDT',
             //         'trade_no' => '40545292203741231233614' ),
             //     'time' => 1720775985 );
+            // future
+            // array("code" => 0, "msg" => "success", "data" => 2591546, "time" => 1723187903)
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
             }
             Async\await($this->load_markets());
             $market = $this->market($symbol);
-            $request = array(
-                'symbol' => $market['id'],
-                'order_id' => $id,
-            );
-            $response = Async\await($this->spotPrivatePostOpenV1OrdersCancel ($request));
-            $orderData = $this->safe_dict($response, 'data');
-            return $this->parse_order($orderData, $market);
+            $request = null;
+            $response = null;
+            if ($market['spot']) {
+                $request = array(
+                    'symbol' => $market['id'],
+                    'order_id' => $id,
+                );
+                $response = Async\await($this->spotPrivatePostOpenV1OrdersCancel ($request));
+                $orderData = $this->safe_dict($response, 'data');
+                return $this->parse_order($orderData, $market);
+            } else {
+                $request = array(
+                    'market' => $market['id'],
+                    'order_id' => $id,
+                );
+                $response = Async\await($this->futurePrivatePostOpenApiV2OrderCancel ($request));
+                return array(
+                    'info' => $response,
+                    'id' => $id,
+                    'symbol' => $symbol,
+                    'status' => 'open',
+                    'timestamp' => $this->safe_timestamp($response, 'time'),
+                );
+            }
         }) ();
     }
 
@@ -1550,7 +1601,7 @@ class allin extends Exchange {
         //     "type" => "buy",
         //     "time" => 1697619536.256684
         //   }
-        $timestamp = $this->safe_timestamp($trade, 'time');
+        $timestamp = $this->safe_timestamp_2($trade, 'time', 'timestamp');
         $symbol = $this->safe_string($market, 'symbol');
         $side = null;
         if ($market['spot']) {
@@ -1908,6 +1959,8 @@ class allin extends Exchange {
         //         array( 'amount' => '0', 'freeze' => '0', 'symbol' => 'TRX' ),
         //         array( 'amount' => '99988000', 'freeze' => '6000', 'symbol' => 'USDT' ) ),
         //     'time' => 1720067861 );
+        // feture
+        // array('code' => '10013', 'msg' => 'order is not exist', 'data' => None, 'time' => '1723189930')
         if ($response === null) {
             return null; // fallback to default error handler
         }
@@ -1918,6 +1971,8 @@ class allin extends Exchange {
             $msg = $this->id . ', code => ' . $codeStr . ', ' . $messageNew;
             $this->log($response);
             $this->throw_exactly_matched_exception($this->exceptions['exact'], $codeStr, $msg);
+            // Make sure to throw an exception.
+            // throw new ExchangeError($msg);
         }
     }
 }

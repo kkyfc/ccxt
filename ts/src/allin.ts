@@ -5,7 +5,8 @@ import Exchange from './abstract/allin.js';
 import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError,
     OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol,
     OperationFailed, BaseError,
-    InsufficientFunds } from './base/errors.js';
+    InsufficientFunds, OperationRejected,
+    OrderNotFillable, InvalidOrder } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage } from './base/types.js';
@@ -269,7 +270,7 @@ export default class allin extends Exchange {
                     '1010019': BadRequest,          // market price empty
                     '1010020': BadRequest,          // order_type must 1 or 3
                     '1010022': BadRequest,          // Below the minimum purchase price
-                    '1010017': BadRequest,          // Order amount cannot be less than %s
+                    '1010017': OrderNotFillable,          // Order amount cannot be less than %s
                     '1010023': BadRequest,          // Below the minimum sell price
                     '1010318': BadRequest,          // client_oid must be 21 in length, and must be numbers
                     '1010030': OrderNotFound,       // order_id not exists
@@ -280,9 +281,41 @@ export default class allin extends Exchange {
                     '1010364': BadRequest,          // symbol count cannot be more than 10
                     'default': BaseError,
                     // future
-                    '20015': ExchangeError,
                     '13128': InsufficientFunds,     // balance not enough
-                    '20010': BadRequest,            // price illegal
+                    '13122': OrderNotFound,
+                    '10013': OrderNotFound,
+                    '10029': OrderNotFillable,      // order count over limit
+                    '10056': ExchangeError,         // depth insufficient
+                    '10057': ExchangeError,         // failure to collect reward
+                    '10058': BadRequest,            // this event has reached its maximum number of participants
+                    '10059': InsufficientFunds,     // this reward has been issued, please pay attention to the next activity
+                    '10060': ExchangeError,         // activity has not started yet
+                    '10061': BadRequest,            // position is not exist
+                    '10062': InvalidOrder,          // the order quantity is too smal
+                    '10063': InvalidOrder,          // failure to fulfil activity requirements
+                    '13127': InvalidOrder,          // amount exceed limit
+                    '10064': OperationRejected,     // ban trade
+                    '20001': BadRequest,            // leverage illega
+                    '20002': BadRequest,            // market  illegal
+                    '20003': BadSymbol,             // position type illegal
+                    '20004': BadRequest,            // adjust margin type illegal
+                    '20005': BadRequest,            // order side illegal
+                    '20006': BadRequest,            // order id illegal
+                    '20007': BadRequest,            // position id illegal
+                    '20008': BadRequest,            // quantity illegal
+                    '20010': BadRequest,            // price illegal,
+                    '20011': BadRequest,            // stop loss price type illegal
+                    '20012': BadRequest,            // stop loss price illegal
+                    '20013': BadRequest,            // take profit price type illegal
+                    '20014': BadRequest,            // take profit price illegal
+                    '20015': BadRequest,            // page illegal
+                    '20016': BadRequest,            // page size illegal
+                    '20017': BadRequest,            // start time illegal
+                    '20018': BadRequest,            // end time illegal
+                    '20019': BadRequest,            // kline type illegal
+                    '20020': BadRequest,            // stop price illegal
+                    '20021': BadRequest,            // current price illegal
+                    '20022': BadRequest,            // step illegal
                 },
             },
         });
@@ -1226,18 +1259,37 @@ export default class allin extends Exchange {
         //         'ticker': 'BTC-USDT',
         //         'trade_no': '40545292203741231233614' },
         //     'time': 1720775985 };
+        // future
+        // {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
         if (symbol === undefined) {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request: Dict = {
-            'symbol': market['id'],
-            'order_id': id,
-        };
-        const response = await this.spotPrivatePostOpenV1OrdersCancel (request);
-        const orderData = this.safeDict (response, 'data');
-        return this.parseOrder (orderData, market);
+        let request = undefined;
+        let response = undefined;
+        if (market['spot']) {
+            request = {
+                'symbol': market['id'],
+                'order_id': id,
+            };
+            response = await this.spotPrivatePostOpenV1OrdersCancel (request);
+            const orderData = this.safeDict (response, 'data');
+            return this.parseOrder (orderData, market);
+        } else {
+            request = {
+                'market': market['id'],
+                'order_id': id,
+            };
+            response = await this.futurePrivatePostOpenApiV2OrderCancel (request);
+            return {
+                'info': response,
+                'id': id,
+                'symbol': symbol,
+                'status': 'open',
+                'timestamp': this.safeTimestamp (response, 'time'),
+            };
+        }
     }
 
     createSpotOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
@@ -1544,7 +1596,7 @@ export default class allin extends Exchange {
         //     "type": "buy",
         //     "time": 1697619536.256684
         //   }
-        const timestamp = this.safeTimestamp (trade, 'time');
+        const timestamp = this.safeTimestamp2 (trade, 'time', 'timestamp');
         const symbol = this.safeString (market, 'symbol');
         let side = undefined;
         if (market['spot']) {
@@ -1902,6 +1954,8 @@ export default class allin extends Exchange {
         //         { 'amount': '0', 'freeze': '0', 'symbol': 'TRX' },
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
+        // feture
+        // {'code': '10013', 'msg': 'order is not exist', 'data': None, 'time': '1723189930'}
         if (response === undefined) {
             return undefined; // fallback to default error handler
         }
@@ -1912,6 +1966,8 @@ export default class allin extends Exchange {
             const msg = this.id + ', code: ' + codeStr + ', ' + messageNew;
             this.log (response);
             this.throwExactlyMatchedException (this.exceptions['exact'], codeStr, msg);
+            // Make sure to throw an exception.
+            // throw new ExchangeError (msg);
         }
     }
 }

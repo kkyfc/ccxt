@@ -264,7 +264,7 @@ class allin extends allin$1 {
                     '1010019': errors.BadRequest,
                     '1010020': errors.BadRequest,
                     '1010022': errors.BadRequest,
-                    '1010017': errors.BadRequest,
+                    '1010017': errors.OrderNotFillable,
                     '1010023': errors.BadRequest,
                     '1010318': errors.BadRequest,
                     '1010030': errors.OrderNotFound,
@@ -275,9 +275,41 @@ class allin extends allin$1 {
                     '1010364': errors.BadRequest,
                     'default': errors.BaseError,
                     // future
-                    '20015': errors.ExchangeError,
                     '13128': errors.InsufficientFunds,
-                    '20010': errors.BadRequest, // price illegal
+                    '13122': errors.OrderNotFound,
+                    '10013': errors.OrderNotFound,
+                    '10029': errors.OrderNotFillable,
+                    '10056': errors.ExchangeError,
+                    '10057': errors.ExchangeError,
+                    '10058': errors.BadRequest,
+                    '10059': errors.InsufficientFunds,
+                    '10060': errors.ExchangeError,
+                    '10061': errors.BadRequest,
+                    '10062': errors.InvalidOrder,
+                    '10063': errors.InvalidOrder,
+                    '13127': errors.InvalidOrder,
+                    '10064': errors.OperationRejected,
+                    '20001': errors.BadRequest,
+                    '20002': errors.BadRequest,
+                    '20003': errors.BadSymbol,
+                    '20004': errors.BadRequest,
+                    '20005': errors.BadRequest,
+                    '20006': errors.BadRequest,
+                    '20007': errors.BadRequest,
+                    '20008': errors.BadRequest,
+                    '20010': errors.BadRequest,
+                    '20011': errors.BadRequest,
+                    '20012': errors.BadRequest,
+                    '20013': errors.BadRequest,
+                    '20014': errors.BadRequest,
+                    '20015': errors.BadRequest,
+                    '20016': errors.BadRequest,
+                    '20017': errors.BadRequest,
+                    '20018': errors.BadRequest,
+                    '20019': errors.BadRequest,
+                    '20020': errors.BadRequest,
+                    '20021': errors.BadRequest,
+                    '20022': errors.BadRequest, // step illegal
                 },
             },
         });
@@ -1193,18 +1225,38 @@ class allin extends allin$1 {
         //         'ticker': 'BTC-USDT',
         //         'trade_no': '40545292203741231233614' },
         //     'time': 1720775985 };
+        // future
+        // {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets();
         const market = this.market(symbol);
-        const request = {
-            'symbol': market['id'],
-            'order_id': id,
-        };
-        const response = await this.spotPrivatePostOpenV1OrdersCancel(request);
-        const orderData = this.safeDict(response, 'data');
-        return this.parseOrder(orderData, market);
+        let request = undefined;
+        let response = undefined;
+        if (market['spot']) {
+            request = {
+                'symbol': market['id'],
+                'order_id': id,
+            };
+            response = await this.spotPrivatePostOpenV1OrdersCancel(request);
+            const orderData = this.safeDict(response, 'data');
+            return this.parseOrder(orderData, market);
+        }
+        else {
+            request = {
+                'market': market['id'],
+                'order_id': id,
+            };
+            response = await this.futurePrivatePostOpenApiV2OrderCancel(request);
+            return {
+                'info': response,
+                'id': id,
+                'symbol': symbol,
+                'status': 'open',
+                'timestamp': this.safeTimestamp(response, 'time'),
+            };
+        }
     }
     createSpotOrderRequest(symbol, type, side, amount, price, params, market) {
         const orderType = this.toSpotOrderType(type);
@@ -1504,7 +1556,7 @@ class allin extends allin$1 {
         //     "type": "buy",
         //     "time": 1697619536.256684
         //   }
-        const timestamp = this.safeTimestamp(trade, 'time');
+        const timestamp = this.safeTimestamp2(trade, 'time', 'timestamp');
         const symbol = this.safeString(market, 'symbol');
         let side = undefined;
         if (market['spot']) {
@@ -1861,6 +1913,8 @@ class allin extends allin$1 {
         //         { 'amount': '0', 'freeze': '0', 'symbol': 'TRX' },
         //         { 'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT' } ],
         //     'time': 1720067861 };
+        // feture
+        // {'code': '10013', 'msg': 'order is not exist', 'data': None, 'time': '1723189930'}
         if (response === undefined) {
             return undefined; // fallback to default error handler
         }
@@ -1871,6 +1925,8 @@ class allin extends allin$1 {
             const msg = this.id + ', code: ' + codeStr + ', ' + messageNew;
             this.log(response);
             this.throwExactlyMatchedException(this.exceptions['exact'], codeStr, msg);
+            // Make sure to throw an exception.
+            // throw new ExchangeError (msg);
         }
     }
 }

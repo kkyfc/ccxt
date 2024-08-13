@@ -15,8 +15,11 @@ from ccxt.base.errors import AuthenticationError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
 from ccxt.base.errors import BadSymbol
+from ccxt.base.errors import OperationRejected
 from ccxt.base.errors import InsufficientFunds
+from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
+from ccxt.base.errors import OrderNotFillable
 from ccxt.base.errors import OperationFailed
 from ccxt.base.errors import NetworkError
 from ccxt.base.errors import RateLimitExceeded
@@ -277,7 +280,7 @@ class allin(Exchange, ImplicitAPI):
                     '1010019': BadRequest,          # market price empty
                     '1010020': BadRequest,          # order_type must 1 or 3
                     '1010022': BadRequest,          # Below the minimum purchase price
-                    '1010017': BadRequest,          # Order amount cannot be less than %s
+                    '1010017': OrderNotFillable,          # Order amount cannot be less than %s
                     '1010023': BadRequest,          # Below the minimum sell price
                     '1010318': BadRequest,          # client_oid must be 21 in length, and must be numbers
                     '1010030': OrderNotFound,       # order_id not exists
@@ -288,9 +291,41 @@ class allin(Exchange, ImplicitAPI):
                     '1010364': BadRequest,          # symbol count cannot be more than 10
                     'default': BaseError,
                     # future
-                    '20015': ExchangeError,
                     '13128': InsufficientFunds,     # balance not enough
-                    '20010': BadRequest,            # price illegal
+                    '13122': OrderNotFound,
+                    '10013': OrderNotFound,
+                    '10029': OrderNotFillable,      # order count over limit
+                    '10056': ExchangeError,         # depth insufficient
+                    '10057': ExchangeError,         # failure to collect reward
+                    '10058': BadRequest,            # self event has reached its maximum number of participants
+                    '10059': InsufficientFunds,     # self reward has been issued, please pay attention to the next activity
+                    '10060': ExchangeError,         # activity has not started yet
+                    '10061': BadRequest,            # position is not exist
+                    '10062': InvalidOrder,          # the order quantity is too smal
+                    '10063': InvalidOrder,          # failure to fulfil activity requirements
+                    '13127': InvalidOrder,          # amount exceed limit
+                    '10064': OperationRejected,     # ban trade
+                    '20001': BadRequest,            # leverage illega
+                    '20002': BadRequest,            # market  illegal
+                    '20003': BadSymbol,             # position type illegal
+                    '20004': BadRequest,            # adjust margin type illegal
+                    '20005': BadRequest,            # order side illegal
+                    '20006': BadRequest,            # order id illegal
+                    '20007': BadRequest,            # position id illegal
+                    '20008': BadRequest,            # quantity illegal
+                    '20010': BadRequest,            # price illegal,
+                    '20011': BadRequest,            # stop loss price type illegal
+                    '20012': BadRequest,            # stop loss price illegal
+                    '20013': BadRequest,            # take profit price type illegal
+                    '20014': BadRequest,            # take profit price illegal
+                    '20015': BadRequest,            # page illegal
+                    '20016': BadRequest,            # page size illegal
+                    '20017': BadRequest,            # start time illegal
+                    '20018': BadRequest,            # end time illegal
+                    '20019': BadRequest,            # kline type illegal
+                    '20020': BadRequest,            # stop price illegal
+                    '20021': BadRequest,            # current price illegal
+                    '20022': BadRequest,            # step illegal
                 },
             },
         })
@@ -1156,17 +1191,35 @@ class allin(Exchange, ImplicitAPI):
         #         'ticker': 'BTC-USDT',
         #         'trade_no': '40545292203741231233614'},
         #     'time': 1720775985}
+        # future
+        # {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        request: dict = {
-            'symbol': market['id'],
-            'order_id': id,
-        }
-        response = await self.spotPrivatePostOpenV1OrdersCancel(request)
-        orderData = self.safe_dict(response, 'data')
-        return self.parse_order(orderData, market)
+        request = None
+        response = None
+        if market['spot']:
+            request = {
+                'symbol': market['id'],
+                'order_id': id,
+            }
+            response = await self.spotPrivatePostOpenV1OrdersCancel(request)
+            orderData = self.safe_dict(response, 'data')
+            return self.parse_order(orderData, market)
+        else:
+            request = {
+                'market': market['id'],
+                'order_id': id,
+            }
+            response = await self.futurePrivatePostOpenApiV2OrderCancel(request)
+            return {
+                'info': response,
+                'id': id,
+                'symbol': symbol,
+                'status': 'open',
+                'timestamp': self.safe_timestamp(response, 'time'),
+            }
 
     def create_spot_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
         orderType = self.to_spot_order_type(type)
@@ -1449,7 +1502,7 @@ class allin(Exchange, ImplicitAPI):
         #     "type": "buy",
         #     "time": 1697619536.256684
         #   }
-        timestamp = self.safe_timestamp(trade, 'time')
+        timestamp = self.safe_timestamp_2(trade, 'time', 'timestamp')
         symbol = self.safe_string(market, 'symbol')
         side = None
         if market['spot']:
@@ -1781,6 +1834,8 @@ class allin(Exchange, ImplicitAPI):
         #         {'amount': '0', 'freeze': '0', 'symbol': 'TRX'},
         #         {'amount': '99988000', 'freeze': '6000', 'symbol': 'USDT'}],
         #     'time': 1720067861}
+        # feture
+        # {'code': '10013', 'msg': 'order is not exist', 'data': None, 'time': '1723189930'}
         if response is None:
             return None  # fallback to default error handler
         responseCode: int = self.safe_integer(response, 'code', 0)
@@ -1790,3 +1845,5 @@ class allin(Exchange, ImplicitAPI):
             msg = self.id + ', code: ' + codeStr + ', ' + messageNew
             self.log(response)
             self.throw_exactly_matched_exception(self.exceptions['exact'], codeStr, msg)
+            # Make sure to raise an exception.
+            # raise ExchangeError(msg)
