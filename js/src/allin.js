@@ -312,7 +312,8 @@ export default class allin extends Exchange {
                     '20019': BadRequest,
                     '20020': BadRequest,
                     '20021': BadRequest,
-                    '20022': BadRequest, // step illegal
+                    '20022': BadRequest,
+                    '12026': ExchangeError, // internal error
                 },
             },
         });

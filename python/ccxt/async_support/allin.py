@@ -326,6 +326,7 @@ class allin(Exchange, ImplicitAPI):
                     '20020': BadRequest,            # stop price illegal
                     '20021': BadRequest,            # current price illegal
                     '20022': BadRequest,            # step illegal
+                    '12026': ExchangeError,         # internal error
                 },
             },
         })

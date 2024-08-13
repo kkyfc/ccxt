@@ -308,6 +308,7 @@ class allin extends Exchange {
                     '20020' => '\\ccxt\\BadRequest',            // stop price illegal
                     '20021' => '\\ccxt\\BadRequest',            // current price illegal
                     '20022' => '\\ccxt\\BadRequest',            // step illegal
+                    '12026' => '\\ccxt\\ExchangeError',         // internal error
                 ),
             ),
         ));

@@ -309,7 +309,8 @@ class allin extends allin$1 {
                     '20019': errors.BadRequest,
                     '20020': errors.BadRequest,
                     '20021': errors.BadRequest,
-                    '20022': errors.BadRequest, // step illegal
+                    '20022': errors.BadRequest,
+                    '12026': errors.ExchangeError, // internal error
                 },
             },
         });
