@@ -468,7 +468,7 @@ export default class allin extends Exchange {
             'contract': contract,
             'settle': settle,
             'settleId': settleId,
-            'contractSize': contract ? this.safeNumber(market, 'tick_size') : undefined,
+            'contractSize': contract ? 1 : undefined,
             'linear': linear,
             'inverse': !linear,
             'expiry': undefined,

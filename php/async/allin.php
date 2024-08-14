@@ -468,7 +468,7 @@ class allin extends Exchange {
             'contract' => $contract,
             'settle' => $settle,
             'settleId' => $settleId,
-            'contractSize' => $contract ? $this->safe_number($market, 'tick_size') : null,
+            'contractSize' => $contract ? 1 : null,
             'linear' => $linear,
             'inverse' => !$linear,
             'expiry' => null,

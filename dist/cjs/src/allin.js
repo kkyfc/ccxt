@@ -464,7 +464,7 @@ class allin extends allin$1 {
             'contract': contract,
             'settle': settle,
             'settleId': settleId,
-            'contractSize': this.safeNumber(market, 'tick_size') ,
+            'contractSize': 1 ,
             'linear': linear,
             'inverse': !linear,
             'expiry': undefined,

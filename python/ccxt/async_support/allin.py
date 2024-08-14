@@ -468,7 +468,7 @@ class allin(Exchange, ImplicitAPI):
             'contract': contract,
             'settle': settle,
             'settleId': settleId,
-            'contractSize': self.safe_number(market, 'tick_size') if contract else None,
+            'contractSize': 1 if contract else None,
             'linear': linear,
             'inverse': not linear,
             'expiry': None,

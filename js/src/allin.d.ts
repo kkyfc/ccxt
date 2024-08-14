@@ -38,7 +38,7 @@ export default class allin extends Exchange {
     parseOHLCV(ohlcv: any, market?: Market): OHLCV;
     parseLowerTimeframe(timeframeId: string): any;
     parseTrade(trade: Dict, market?: Market): Trade;
-    parseOrderType(type_: Str): "limit" | "market";
+    parseOrderType(type_: Str): "market" | "limit";
     toSpotOrderType(type_: string): "LIMIT" | "MARKET";
     toFutureOrderType(type_: string): 2 | 1;
     parseOrderSide(side: Int): "buy" | "sell";
