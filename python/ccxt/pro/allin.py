@@ -49,9 +49,9 @@ class allin(ccxt.async_support.allin):
                 },
                 'api': {
                     'ws': {
-                        'spot': 'wss://ws.allintest.pro/ws',
-                        'future': 'wss://api.allintest.pro/futures/wsf',
-                        'swap': 'wss://api.allintest.pro/futures/wsf',
+                        'spot': 'wss://ws.allinpro.com/ws',
+                        'future': 'wss://api.allinpro.com/futures/wsf',
+                        'swap': 'wss://api.allinpro.com/futures/wsf',
                     },
                 },
                 'doc': 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',
@@ -324,11 +324,11 @@ class allin(ccxt.async_support.allin):
             s = 'client_id=' + client_id + '&nonce=' + nonce + '&ts=' + ts
             v = self.hmac(self.encode(s), self.encode(self.secret), hashlib.sha256)
             request = {'method': 'sign',
-                       'id': self.request_id(),
-                       'params': {'client_id': client_id,
-                                  'ts': ts,
-                                  'nonce': nonce,
-                                  'sign': v}}
+                'id': self.request_id(),
+                'params': {'client_id': client_id,
+                    'ts': ts,
+                    'nonce': nonce,
+                    'sign': v}}
             self.watch(url, messageHash, request, messageHash)
         return await future
 

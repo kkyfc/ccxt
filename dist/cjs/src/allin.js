@@ -155,10 +155,10 @@ class allin extends allin$1 {
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc': ['https://allinexchange.github.io/spot-docs/v1/en/#introduction'],
                 'api': {
-                    'spotPublic': 'https://api.allintest.pro',
-                    'spotPrivate': 'https://api.allintest.pro',
-                    'futurePublic': 'https://api.allintest.pro/futuresopen',
-                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
+                    'spotPublic': 'https://api.allinpro.com',
+                    'spotPrivate': 'https://api.allinpro.com',
+                    'futurePublic': 'https://api.allinpro.com/futuresopen',
+                    'futurePrivate': 'https://api.allinpro.com/futuresopen',
                 },
             },
             'api': {
