@@ -160,8 +160,8 @@ export default class allin extends Exchange {
                 'api': {
                     'spotPublic': 'http://api.aie.prod',
                     'spotPrivate': 'http://api.aie.prod',
-                    'futurePublic': 'http://futuresws.aie.prod',
-                    'futurePrivate': 'http://futuresws.aie.prod',
+                    'futurePublic': 'http://futuresopen.aie.prod',
+                    'futurePrivate': 'http://futuresopen.aie.prod',
                 },
             },
             'api': {
