@@ -41,9 +41,9 @@ class allin extends allin$1 {
                 },
                 'api': {
                     'ws': {
-                        'spot': 'wss://ws.allinpro.com/ws',
-                        'future': 'wss://api.allinpro.com/futures/wsf',
-                        'swap': 'wss://api.allinpro.com/futures/wsf',
+                        'spot': 'ws://ws.aie.prod/ws',
+                        'future': 'ws://futuresws.aie.prod/wsf',
+                        'swap': 'ws://futuresws.aie.prod/wsf',
                     },
                 },
                 'doc': 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',

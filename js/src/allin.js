@@ -158,10 +158,10 @@ export default class allin extends Exchange {
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc': ['https://allinexchange.github.io/spot-docs/v1/en/#introduction'],
                 'api': {
-                    'spotPublic': 'https://api.allinpro.com',
-                    'spotPrivate': 'https://api.allinpro.com',
-                    'futurePublic': 'https://api.allinpro.com/futuresopen',
-                    'futurePrivate': 'https://api.allinpro.com/futuresopen',
+                    'spotPublic': 'http://api.aie.prod',
+                    'spotPrivate': 'http://api.aie.prod',
+                    'futurePublic': 'http://futuresws.aie.prod',
+                    'futurePrivate': 'http://futuresws.aie.prod',
                 },
             },
             'api': {
