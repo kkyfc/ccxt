@@ -1426,7 +1426,7 @@ class Exchange(object):
             key = ecdsa.SigningKey.from_pem(secret, hash_function)
         else:
             key = ecdsa.SigningKey.from_string(base64.b16decode(secret,
-                                                            casefold=True), curve=curve_info[0])
+                                                                casefold=True), curve=curve_info[0])
         r_binary, s_binary, v = key.sign_digest_deterministic(digest, hashfunc=hash_function,
                                                               sigencode=ecdsa.util.sigencode_strings_canonize)
         r_int, s_int = ecdsa.util.sigdecode_strings((r_binary, s_binary), key.privkey.order)
