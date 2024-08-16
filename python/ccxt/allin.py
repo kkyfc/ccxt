@@ -265,7 +265,7 @@ class allin(Exchange, ImplicitAPI):
                     '1010316': AuthenticationError,  # no authority, sign is error
                     '1010007': RateLimitExceeded,   # call too frequently
                     '1010325': BadSymbol,           # symbol is empty
-                    '10500': ExchangeError,         # system error
+                    '10500': InsufficientFunds,         # system error
                     '1010367': OperationFailed,     # self ticker cannot be operated
                     '1010006': AuthenticationError,  # invalid user_id
                     '1010009': BadRequest,          # side is error
@@ -398,29 +398,21 @@ class allin(Exchange, ImplicitAPI):
             return self.parse_future_market(market)
 
     def parse_future_market(self, market: dict) -> MarketInterface:
-        # market = {'code': 0,
-        #     'data': [{'amount_min': '0.0001',
-        #         'amount_prec': 4,
-        #         'available': True,
-        #         'fee_prec': 8,
-        #         'leverages': ['5', '8', '10', '15', '20', '30', '50', '100'],
-        #         'limits': [['500.0001', '5', '0.1'],
-        #             ['200.0001', '10', '0.05'],
-        #             ['100.0001', '15', '0.03'],
-        #             ['50.0001', '20', '0.02'],
-        #             ['20.0001', '50', '0.01'],
-        #             ['10.0001', '100', '0.005']],
-        #         'merges': ['100', '10', '1', '0.1', '0.01'],
-        #         'money': 'USDT',
-        #         'money_prec': 2,
-        #         'name': 'BTCUSDT',
-        #         'sort': 1,
-        #         'stock': 'BTC',
-        #         'stock_prec': 8,
-        #         'tick_size': '0.01',
-        #         'type': 1}],
-        #     'msg': 'success',
-        #     'time': 1722510060}
+        # market = {'type': 1,
+        #     'leverages': ['3', '5', '8', '10', '15', '20', '30', '50', '100'],
+        #     'merges': ['100', '10', '1', '0.1', '0.01'],
+        #     'name': 'BTCUSDT',
+        #     'stock': 'BTC',
+        #     'money': 'USDT',
+        #     'fee_prec': 8,
+        #     'tick_size': '0.01',
+        #     'stock_prec': 8,
+        #     'money_prec': 2,
+        #     'amount_prec': 4,
+        #     'amount_min': '0.0001',
+        #     'available': True,
+        #     'limits': [['2500.0001', '3', '0.036'], ['2000.0001', '5', '0.032'], ['1500.0001', '8', '0.028'], ['1000.0001', '10', '0.024'], ['500.0001', '15', '0.02'], ['250.0001', '20', '0.016'], ['100.0001', '30', '0.012'], ['50.0001', '50', '0.008'], ['20.0001', '100', '0.004']],
+        #     'sort': 100}
         origin_symbol = self.safe_string(market, 'name')
         active = self.safe_bool(market, 'available')
         baseId = self.safe_string(market, 'stock')
@@ -448,8 +440,8 @@ class allin(Exchange, ImplicitAPI):
         leverages = self.safe_list(market, 'leverages')
         maxLeverage = self.safe_string(leverages, len(leverages) - 1)
         minLeverage = self.safe_string(leverages, 0)
-        base_precision = self.safe_number(market, 'stock_prec')
-        quote_precision = self.safe_number(market, 'money_prec')
+        base_precision = self.safe_integer(market, 'stock_prec')
+        quote_precision = self.safe_integer(market, 'money_prec')
         return self.extend(fees, {
             'id': origin_symbol,
             'symbol': symbol,
@@ -1228,10 +1220,10 @@ class allin(Exchange, ImplicitAPI):
             'symbol': market['id'],
             'side': self.force_string(orderSide),
             'order_type': orderType,
-            'quantity': self.force_string(amount),
+            'quantity': self.amount_to_precision(symbol, amount),
         }
         if price is not None and orderType == 'LIMIT':
-            request['price'] = self.force_string(price)
+            request['price'] = self.price_to_precision(symbol, price)
         requestParams = self.omit(params, [
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
             'triggerPrice', 'trailingTriggerPrice',
@@ -1243,10 +1235,10 @@ class allin(Exchange, ImplicitAPI):
         request = {
             'market': market['id'],
             'side': orderSide,
-            'quantity': self.force_string(amount),
+            'quantity': self.amount_to_precision(symbol, amount),
         }
         if price is not None and type == 'limit':
-            request['price'] = self.force_string(price)
+            request['price'] = self.price_to_precision(symbol, price)
         return request
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):

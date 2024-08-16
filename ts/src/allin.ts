@@ -256,7 +256,7 @@ export default class allin extends Exchange {
                     '1010316': AuthenticationError, // no authority, sign is error
                     '1010007': RateLimitExceeded,   // call too frequently
                     '1010325': BadSymbol,           // symbol is empty
-                    '10500': ExchangeError,         // system error
+                    '10500': InsufficientFunds,         // system error
                     '1010367': OperationFailed,     // this ticker cannot be operated
                     '1010006': AuthenticationError, // invalid user_id
                     '1010009': BadRequest,          // side is error
@@ -399,29 +399,21 @@ export default class allin extends Exchange {
     }
 
     parseFutureMarket (market: Dict): MarketInterface {
-        // const market = { 'code': 0,
-        //     'data': [ { 'amount_min': '0.0001',
-        //         'amount_prec': 4,
-        //         'available': True,
-        //         'fee_prec': 8,
-        //         'leverages': [ '5', '8', '10', '15', '20', '30', '50', '100' ],
-        //         'limits': [ [ '500.0001', '5', '0.1' ],
-        //             [ '200.0001', '10', '0.05' ],
-        //             [ '100.0001', '15', '0.03' ],
-        //             [ '50.0001', '20', '0.02' ],
-        //             [ '20.0001', '50', '0.01' ],
-        //             [ '10.0001', '100', '0.005' ] ],
-        //         'merges': [ '100', '10', '1', '0.1', '0.01' ],
-        //         'money': 'USDT',
-        //         'money_prec': 2,
-        //         'name': 'BTCUSDT',
-        //         'sort': 1,
-        //         'stock': 'BTC',
-        //         'stock_prec': 8,
-        //         'tick_size': '0.01',
-        //         'type': 1 } ],
-        //     'msg': 'success',
-        //     'time': 1722510060 };
+        // const market = { 'type': 1,
+        //     'leverages': [ '3', '5', '8', '10', '15', '20', '30', '50', '100' ],
+        //     'merges': [ '100', '10', '1', '0.1', '0.01' ],
+        //     'name': 'BTCUSDT',
+        //     'stock': 'BTC',
+        //     'money': 'USDT',
+        //     'fee_prec': 8,
+        //     'tick_size': '0.01',
+        //     'stock_prec': 8,
+        //     'money_prec': 2,
+        //     'amount_prec': 4,
+        //     'amount_min': '0.0001',
+        //     'available': true,
+        //     'limits': [ [ '2500.0001', '3', '0.036' ], [ '2000.0001', '5', '0.032' ], [ '1500.0001', '8', '0.028' ], [ '1000.0001', '10', '0.024' ], [ '500.0001', '15', '0.02' ], [ '250.0001', '20', '0.016' ], [ '100.0001', '30', '0.012' ], [ '50.0001', '50', '0.008' ], [ '20.0001', '100', '0.004' ] ],
+        //     'sort': 100 };
         const origin_symbol = this.safeString (market, 'name');
         const active = this.safeBool (market, 'available');
         const baseId = this.safeString (market, 'stock');
@@ -450,8 +442,8 @@ export default class allin extends Exchange {
         const leverages = this.safeList (market, 'leverages');
         const maxLeverage = this.safeString (leverages, leverages.length - 1);
         const minLeverage = this.safeString (leverages, 0);
-        const base_precision = this.safeNumber (market, 'stock_prec');
-        const quote_precision = this.safeNumber (market, 'money_prec');
+        const base_precision = this.safeInteger (market, 'stock_prec');
+        const quote_precision = this.safeInteger (market, 'money_prec');
         return this.extend (fees, {
             'id': origin_symbol,
             'symbol': symbol,
@@ -1300,10 +1292,10 @@ export default class allin extends Exchange {
             'symbol': market['id'],
             'side': this.forceString (orderSide),
             'order_type': orderType,
-            'quantity': this.forceString (amount),
+            'quantity': this.amountToPrecision (symbol, amount),
         };
         if (price !== undefined && orderType === 'LIMIT') {
-            request['price'] = this.forceString (price);
+            request['price'] = this.priceToPrecision (symbol, price);
         }
         const requestParams = this.omit (params, [
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
@@ -1317,10 +1309,10 @@ export default class allin extends Exchange {
         const request = {
             'market': market['id'],
             'side': orderSide,
-            'quantity': this.forceString (amount),
+            'quantity': this.amountToPrecision (symbol, amount),
         };
         if (price !== undefined && type === 'limit') {
-            request['price'] = this.forceString (price);
+            request['price'] = this.priceToPrecision (symbol, price);
         }
         return request;
     }
