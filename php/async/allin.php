@@ -255,7 +255,7 @@ class allin extends Exchange {
                     '1010316' => '\\ccxt\\AuthenticationError', // no authority, sign is error
                     '1010007' => '\\ccxt\\RateLimitExceeded',   // call too frequently
                     '1010325' => '\\ccxt\\BadSymbol',           // symbol is empty
-                    '10500' => '\\ccxt\\ExchangeError',         // system error
+                    '10500' => '\\ccxt\\InsufficientFunds',         // system error
                     '1010367' => '\\ccxt\\OperationFailed',     // this ticker cannot be operated
                     '1010006' => '\\ccxt\\AuthenticationError', // invalid user_id
                     '1010009' => '\\ccxt\\BadRequest',          // side is error
@@ -398,29 +398,21 @@ class allin extends Exchange {
     }
 
     public function parse_future_market(array $market): array {
-        // $market = { 'code' => 0,
-        //     'data' => array( array( 'amount_min' => '0.0001',
-        //         'amount_prec' => 4,
-        //         'available' => True,
-        //         'fee_prec' => 8,
-        //         'leverages' => array( '5', '8', '10', '15', '20', '30', '50', '100' ),
-        //         'limits' => array( array( '500.0001', '5', '0.1' ),
-        //             array( '200.0001', '10', '0.05' ),
-        //             array( '100.0001', '15', '0.03' ),
-        //             array( '50.0001', '20', '0.02' ),
-        //             array( '20.0001', '50', '0.01' ),
-        //             array( '10.0001', '100', '0.005' ) ),
-        //         'merges' => array( '100', '10', '1', '0.1', '0.01' ),
-        //         'money' => 'USDT',
-        //         'money_prec' => 2,
-        //         'name' => 'BTCUSDT',
-        //         'sort' => 1,
-        //         'stock' => 'BTC',
-        //         'stock_prec' => 8,
-        //         'tick_size' => '0.01',
-        //         'type' => 1 } ),
-        //     'msg' => 'success',
-        //     'time' => 1722510060 );
+        // $market = array( 'type' => 1,
+        //     'leverages' => array( '3', '5', '8', '10', '15', '20', '30', '50', '100' ),
+        //     'merges' => array( '100', '10', '1', '0.1', '0.01' ),
+        //     'name' => 'BTCUSDT',
+        //     'stock' => 'BTC',
+        //     'money' => 'USDT',
+        //     'fee_prec' => 8,
+        //     'tick_size' => '0.01',
+        //     'stock_prec' => 8,
+        //     'money_prec' => 2,
+        //     'amount_prec' => 4,
+        //     'amount_min' => '0.0001',
+        //     'available' => true,
+        //     'limits' => array( array( '2500.0001', '3', '0.036' ), array( '2000.0001', '5', '0.032' ), array( '1500.0001', '8', '0.028' ), array( '1000.0001', '10', '0.024' ), array( '500.0001', '15', '0.02' ), array( '250.0001', '20', '0.016' ), array( '100.0001', '30', '0.012' ), array( '50.0001', '50', '0.008' ), array( '20.0001', '100', '0.004' ) ),
+        //     'sort' => 100 );
         $origin_symbol = $this->safe_string($market, 'name');
         $active = $this->safe_bool($market, 'available');
         $baseId = $this->safe_string($market, 'stock');
@@ -449,8 +441,8 @@ class allin extends Exchange {
         $leverages = $this->safe_list($market, 'leverages');
         $maxLeverage = $this->safe_string($leverages, strlen($leverages) - 1);
         $minLeverage = $this->safe_string($leverages, 0);
-        $base_precision = $this->safe_number($market, 'stock_prec');
-        $quote_precision = $this->safe_number($market, 'money_prec');
+        $base_precision = $this->safe_integer($market, 'stock_prec');
+        $quote_precision = $this->safe_integer($market, 'money_prec');
         return $this->extend($fees, array(
             'id' => $origin_symbol,
             'symbol' => $symbol,
@@ -1305,10 +1297,10 @@ class allin extends Exchange {
             'symbol' => $market['id'],
             'side' => $this->force_string($orderSide),
             'order_type' => $orderType,
-            'quantity' => $this->force_string($amount),
+            'quantity' => $this->amount_to_precision($symbol, $amount),
         );
         if ($price !== null && $orderType === 'LIMIT') {
-            $request['price'] = $this->force_string($price);
+            $request['price'] = $this->price_to_precision($symbol, $price);
         }
         $requestParams = $this->omit($params, array(
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
@@ -1322,10 +1314,10 @@ class allin extends Exchange {
         $request = array(
             'market' => $market['id'],
             'side' => $orderSide,
-            'quantity' => $this->force_string($amount),
+            'quantity' => $this->amount_to_precision($symbol, $amount),
         );
         if ($price !== null && $type === 'limit') {
-            $request['price'] = $this->force_string($price);
+            $request['price'] = $this->price_to_precision($symbol, $price);
         }
         return $request;
     }
