@@ -1593,7 +1593,13 @@ class allin extends Exchange {
         } elseif ($type_ === 'MARKET' || $type_ === '2') {
             return 'market';
         } else {
-            throw new ExchangeError('unknown orderType => ' . $this->number_to_string($type_));
+            $errorType = null;
+            if ($type_) {
+                $errorType = 'strval' ($type_);
+            } else {
+                $errorType = 'null';
+            }
+            throw new ExchangeError('unknown orderType => ' . $errorType);
         }
     }
 
