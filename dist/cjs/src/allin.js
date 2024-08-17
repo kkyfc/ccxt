@@ -1587,7 +1587,14 @@ class allin extends allin$1 {
             return 'market';
         }
         else {
-            throw new errors.ExchangeError('unknown orderType: ' + this.numberToString(type_));
+            let errorType = undefined;
+            if (type_) {
+                errorType = String(type_);
+            }
+            else {
+                errorType = 'null';
+            }
+            throw new errors.ExchangeError('unknown orderType: ' + errorType);
         }
     }
     toSpotOrderType(type_) {

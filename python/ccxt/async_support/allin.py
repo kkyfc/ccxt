@@ -1529,7 +1529,12 @@ class allin(Exchange, ImplicitAPI):
         elif type_ == 'MARKET' or type_ == '2':
             return 'market'
         else:
-            raise ExchangeError('unknown orderType: ' + self.number_to_string(type_))
+            errorType = None
+            if type_:
+                errorType = str(type_)
+            else:
+                errorType = 'None'
+            raise ExchangeError('unknown orderType: ' + errorType)
 
     def to_spot_order_type(self, type_: str):
         # ccxt orderType to allin orderType

@@ -1625,7 +1625,13 @@ export default class allin extends Exchange {
         } else if (type_ === 'MARKET' || type_ === '2') {
             return 'market';
         } else {
-            throw new ExchangeError ('unknown orderType: ' + this.numberToString (type_));
+            let errorType = undefined;
+            if (type_) {
+                errorType = String (type_);
+            } else {
+                errorType = 'null';
+            }
+            throw new ExchangeError ('unknown orderType: ' + errorType);
         }
     }
 
