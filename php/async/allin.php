@@ -228,6 +228,7 @@ class allin extends Exchange {
                         '/open/api/v2/order/market' => 0,
                         '/open/api/v2/order/cancel/all' => 0,
                         '/open/api/v2/order/cancel' => 0,
+                        '/open/api/v2/order/cancel/batch' => 0,
                         '/open/api/v2/order/limit' => 0,
                         '/open/api/v2/order/stop' => 0,
                         '/open/api/v2/order/stop/cancel' => 0,
@@ -441,7 +442,7 @@ class allin extends Exchange {
         $leverages = $this->safe_list($market, 'leverages');
         $maxLeverage = $this->safe_string($leverages, strlen($leverages) - 1);
         $minLeverage = $this->safe_string($leverages, 0);
-        $base_precision = $this->safe_integer($market, 'stock_prec');
+        $base_precision = $this->safe_integer($market, 'amount_prec');
         $quote_precision = $this->safe_integer($market, 'money_prec');
         return $this->extend($fees, array(
             'id' => $origin_symbol,
@@ -1164,8 +1165,30 @@ class allin extends Exchange {
             //         "trade_no" => "xxx",
             //     ),
             // }
-            // future
-            // array("code" => 0, "msg" => "success", "data" => 5023856, "time" => 1723130482)
+            // $future
+            // $future = array( 'code' => 0,
+            //     'msg' => 'success',
+            //     'data' => array( 'order_id' => '22710426',
+            //         'position_id' => '0',
+            //         'market' => 'BTCUSDT',
+            //         'type' => '1',
+            //         'side' => '1',
+            //         'left' => '0.0099',
+            //         'amount' => '0.0099',
+            //         'filled' => '0',
+            //         'deal_fee' => '0',
+            //         'price' => '59181.464',
+            //         'avg_price' => '',
+            //         'deal_stock' => '0',
+            //         'position_type' => '2',
+            //         'leverage' => '5',
+            //         'update_time' => '1724067149.721356',
+            //         'create_time' => '1724067149.721356',
+            //         'status' => '1',
+            //         'stop_loss_price' => '',
+            //         'take_profit_price' => '',
+            //         'client_oid' => '40546335150450903175323' ),
+            //     'time' => 1723130482 );
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             $symbolId = $this->safe_string($market, 'id');
@@ -1175,6 +1198,7 @@ class allin extends Exchange {
             $timestamp = null;  // $timestamp in s
             $orderId = null;
             $tradeNo = null;
+            $orderStatus = null;
             if ($market['spot']) {
                 $request = $this->create_spot_order_request(
                     $symbol,
@@ -1192,6 +1216,7 @@ class allin extends Exchange {
                 $tradeNo = $this->safe_string($orderData, 'trade_no');
                 $allinOrderSide = $request['side'];
                 $allinOrderType = $request['order_type'];
+                $orderStatus = 'open';
             } else {
                 $request = $this->create_future_order_request(
                     $symbol,
@@ -1208,12 +1233,16 @@ class allin extends Exchange {
                     $response = Async\await($this->futurePrivatePostOpenApiV2OrderMarket ($request));
                 }
                 $timestamp = $this->safe_integer($response, 'time');  // $timestamp in s
-                $orderId = $this->safe_string($response, 'data');
+                $orderData = $this->safe_dict($response, 'data');
+                $orderId = $this->safe_string($orderData, 'order_id');
+                $orderStatusNum = $this->safe_integer($orderData, 'status');
+                $orderStatus = $this->parse_future_order_status($orderStatusNum);
                 $tradeNo = null;
                 $allinOrderSide = $this->to_order_side($side);
                 $allinOrderType = $this->to_future_order_type($type);
             }
             return $this->parse_order(array(
+                'info' => $response,
                 'order_id' => $orderId,
                 'trade_no' => $tradeNo,
                 'symbol' => $symbolId,
@@ -1224,7 +1253,7 @@ class allin extends Exchange {
                 'match_price' => '',
                 'side' => $allinOrderSide,
                 'order_type' => $allinOrderType,
-                'status' => 'open',
+                'status' => $orderStatus,
                 'create_at' => $timestamp,
             ), $market);
         }) ();
@@ -1256,8 +1285,30 @@ class allin extends Exchange {
             //         'ticker' => 'BTC-USDT',
             //         'trade_no' => '40545292203741231233614' ),
             //     'time' => 1720775985 );
-            // future
-            // array("code" => 0, "msg" => "success", "data" => 2591546, "time" => 1723187903)
+            // $future
+            // $future = array( 'code' => 0,
+            //     'msg' => 'success',
+            //     'data' => array( 'order_id' => '22710426',
+            //         'position_id' => '0',
+            //         'market' => 'BTCUSDT',
+            //         'type' => '1',
+            //         'side' => '1',
+            //         'left' => '0.0099',
+            //         'amount' => '0.0099',
+            //         'filled' => '0',
+            //         'deal_fee' => '0',
+            //         'price' => '59181.464',
+            //         'avg_price' => '',
+            //         'deal_stock' => '0',
+            //         'position_type' => '2',
+            //         'leverage' => '5',
+            //         'update_time' => '1724067149.721356',
+            //         'create_time' => '1724067149.721356',
+            //         'status' => '1',
+            //         'stop_loss_price' => '',
+            //         'take_profit_price' => '',
+            //         'client_oid' => '40546335150450903175323' ),
+            //     'time' => 1723130482 );
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
             }
@@ -1279,13 +1330,60 @@ class allin extends Exchange {
                     'order_id' => $id,
                 );
                 $response = Async\await($this->futurePrivatePostOpenApiV2OrderCancel ($request));
-                return array(
-                    'info' => $response,
-                    'id' => $id,
-                    'symbol' => $symbol,
-                    'status' => 'open',
-                    'timestamp' => $this->safe_timestamp($response, 'time'),
+                $orderData = $this->safe_dict($response, 'data');
+                return $this->parse_order($orderData, $market);
+            }
+        }) ();
+    }
+
+    public function cancel_orders(array $ids, ?string $symbol = null, $params = array ()) {
+        return Async\async(function () use ($ids, $symbol, $params) {
+            /**
+             * cancel multiple orders
+             * @see https://allinexchange.github.io/spot-docs/v1/en/#cancel-all-or-part-of-the-orders-in-order
+             * @param {string[]} $ids order $ids
+             * @param {string} [$symbol] unified $market $symbol
+             * @param {array} [$params] extra parameters specific to the exchange API endpoint
+             */
+            // spot
+            // {
+            //     'code' => 0,
+            //     'data' => array(
+            //         array(
+            //             'symbol' => 'BTC-USDT',
+            //             'order_id' => '11574744030837944',
+            //             'trade_no' => '499016576021202015341',
+            //             'price' => '7900',
+            //             'quantity' => '1',
+            //             'match_amt' => '0',
+            //             'match_qty' => '0',
+            //             'match_price' => '',
+            //             'side' => -1,
+            //             'order_type' => 1,
+            //             'create_at' => 1574744151836
+            //         ),
+            //     ),
+            // }
+            // future array("code" => 0, "msg" => "success", "data" => ["20979038", "20979039"], "time" => 1723883453)
+            $currentType = $this->options['defaultType'];
+            Async\await($this->load_markets());
+            $market = $this->market($symbol);
+            if ($currentType === 'spot') {
+                $request = array(
+                    'symbol' => $market['id'],
+                    'order_ids' => implode(',', $ids),
                 );
+                $response = Async\await($this->spotPrivatePostOpenV1OrdersBatcancel ($request));
+                $orderDatas = $this->safe_dict($response, 'data');
+                return $this->parse_orders($orderDatas, $market);
+            } else {
+                $request = array(
+                    'market' => $market['id'],
+                    'order_ids' => implode(',', $ids),
+                );
+                $response = Async\await($this->futurePrivatePostOpenApiV2OrderCancelBatch ($request));
+                $orderDatas = $this->safe_dict($response, 'data');
+                return $this->parse_orders($orderDatas, $market);
             }
         }) ();
     }
@@ -1948,7 +2046,7 @@ class allin extends Exchange {
 
     public function handle_errors(?int $statusCode, string $statusText, string $url, string $method, array $responseHeaders, string $responseBody, mixed $response, mixed $requestHeaders, mixed $requestBody) {
         if ($statusCode >= 400) {
-            throw new NetworkError($this->id . ' ' . $statusText);
+            throw new NetworkError($this->id . ' http-code=' . $this->number_to_string($statusCode) . ', ' . $statusText);
         }
         // $response = array( 'code' => 0,
         //     'msg' => 'ok',
@@ -1967,8 +2065,7 @@ class allin extends Exchange {
         if ($responseCode !== 0) {
             $codeStr = $this->number_to_string($responseCode);
             $messageNew = $this->safe_string($response, 'msg');
-            $msg = $this->id . ', code => ' . $codeStr . ', ' . $messageNew;
-            $this->log($response);
+            $msg = $this->id . ', server-code=' . $codeStr . ', ' . $messageNew;
             $this->throw_exactly_matched_exception($this->exceptions['exact'], $codeStr, $msg);
             // Make sure to throw an exception.
             // throw new ExchangeError($msg);

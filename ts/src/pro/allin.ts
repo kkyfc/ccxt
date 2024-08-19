@@ -669,6 +669,7 @@ export default class allin extends allinRest {
         //         'symbol': 'BTC-USDT',
         //         'ticker_id': 7,
         //         'timestamp': 1721031092,
+        //         'update_timestamp': 1721031092,
         //         'to': 'BTC',
         //         'topic': 'orders:BTC-USDT',
         //         'tpp': 7,

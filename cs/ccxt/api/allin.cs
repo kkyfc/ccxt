@@ -211,6 +211,11 @@ public partial class allin : Exchange
         return await this.callAsync ("futurePrivatePostOpenApiV2OrderCancel",parameters);
     }
 
+    public async Task<object> futurePrivatePostOpenApiV2OrderCancelBatch (object parameters = null)
+    {
+        return await this.callAsync ("futurePrivatePostOpenApiV2OrderCancelBatch",parameters);
+    }
+
     public async Task<object> futurePrivatePostOpenApiV2OrderLimit (object parameters = null)
     {
         return await this.callAsync ("futurePrivatePostOpenApiV2OrderLimit",parameters);

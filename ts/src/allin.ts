@@ -229,6 +229,7 @@ export default class allin extends Exchange {
                         '/open/api/v2/order/market': 0,
                         '/open/api/v2/order/cancel/all': 0,
                         '/open/api/v2/order/cancel': 0,
+                        '/open/api/v2/order/cancel/batch': 0,
                         '/open/api/v2/order/limit': 0,
                         '/open/api/v2/order/stop': 0,
                         '/open/api/v2/order/stop/cancel': 0,
@@ -442,7 +443,7 @@ export default class allin extends Exchange {
         const leverages = this.safeList (market, 'leverages');
         const maxLeverage = this.safeString (leverages, leverages.length - 1);
         const minLeverage = this.safeString (leverages, 0);
-        const base_precision = this.safeInteger (market, 'stock_prec');
+        const base_precision = this.safeInteger (market, 'amount_prec');
         const quote_precision = this.safeInteger (market, 'money_prec');
         return this.extend (fees, {
             'id': origin_symbol,
@@ -1161,7 +1162,29 @@ export default class allin extends Exchange {
         //     },
         // }
         // future
-        // {"code": 0, "msg": "success", "data": 5023856, "time": 1723130482}
+        // const future = { 'code': 0,
+        //     'msg': 'success',
+        //     'data': { 'order_id': '22710426',
+        //         'position_id': '0',
+        //         'market': 'BTCUSDT',
+        //         'type': '1',
+        //         'side': '1',
+        //         'left': '0.0099',
+        //         'amount': '0.0099',
+        //         'filled': '0',
+        //         'deal_fee': '0',
+        //         'price': '59181.464',
+        //         'avg_price': '',
+        //         'deal_stock': '0',
+        //         'position_type': '2',
+        //         'leverage': '5',
+        //         'update_time': '1724067149.721356',
+        //         'create_time': '1724067149.721356',
+        //         'status': '1',
+        //         'stop_loss_price': '',
+        //         'take_profit_price': '',
+        //         'client_oid': '40546335150450903175323' },
+        //     'time': 1723130482 };
         await this.loadMarkets ();
         const market = this.market (symbol);
         const symbolId = this.safeString (market, 'id');
@@ -1171,6 +1194,7 @@ export default class allin extends Exchange {
         let timestamp = undefined;  // timestamp in s
         let orderId = undefined;
         let tradeNo = undefined;
+        let orderStatus = undefined;
         if (market['spot']) {
             const request: Dict = this.createSpotOrderRequest (
                 symbol,
@@ -1188,6 +1212,7 @@ export default class allin extends Exchange {
             tradeNo = this.safeString (orderData, 'trade_no');
             allinOrderSide = request['side'];
             allinOrderType = request['order_type'];
+            orderStatus = 'open';
         } else {
             const request: Dict = this.createFutureOrderRequest (
                 symbol,
@@ -1204,12 +1229,16 @@ export default class allin extends Exchange {
                 response = await this.futurePrivatePostOpenApiV2OrderMarket (request);
             }
             timestamp = this.safeInteger (response, 'time');  // timestamp in s
-            orderId = this.safeString (response, 'data');
+            const orderData = this.safeDict (response, 'data');
+            orderId = this.safeString (orderData, 'order_id');
+            const orderStatusNum = this.safeInteger (orderData, 'status');
+            orderStatus = this.parseFutureOrderStatus (orderStatusNum);
             tradeNo = undefined;
             allinOrderSide = this.toOrderSide (side);
             allinOrderType = this.toFutureOrderType (type);
         }
         return this.parseOrder ({
+            'info': response,
             'order_id': orderId,
             'trade_no': tradeNo,
             'symbol': symbolId,
@@ -1220,7 +1249,7 @@ export default class allin extends Exchange {
             'match_price': '',
             'side': allinOrderSide,
             'order_type': allinOrderType,
-            'status': 'open',
+            'status': orderStatus,
             'create_at': timestamp,
         }, market);
     }
@@ -1253,7 +1282,29 @@ export default class allin extends Exchange {
         //         'trade_no': '40545292203741231233614' },
         //     'time': 1720775985 };
         // future
-        // {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
+        // const future = { 'code': 0,
+        //     'msg': 'success',
+        //     'data': { 'order_id': '22710426',
+        //         'position_id': '0',
+        //         'market': 'BTCUSDT',
+        //         'type': '1',
+        //         'side': '1',
+        //         'left': '0.0099',
+        //         'amount': '0.0099',
+        //         'filled': '0',
+        //         'deal_fee': '0',
+        //         'price': '59181.464',
+        //         'avg_price': '',
+        //         'deal_stock': '0',
+        //         'position_type': '2',
+        //         'leverage': '5',
+        //         'update_time': '1724067149.721356',
+        //         'create_time': '1724067149.721356',
+        //         'status': '1',
+        //         'stop_loss_price': '',
+        //         'take_profit_price': '',
+        //         'client_oid': '40546335150450903175323' },
+        //     'time': 1723130482 };
         if (symbol === undefined) {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
@@ -1275,13 +1326,60 @@ export default class allin extends Exchange {
                 'order_id': id,
             };
             response = await this.futurePrivatePostOpenApiV2OrderCancel (request);
-            return {
-                'info': response,
-                'id': id,
-                'symbol': symbol,
-                'status': 'open',
-                'timestamp': this.safeTimestamp (response, 'time'),
+            const orderData = this.safeDict (response, 'data');
+            return this.parseOrder (orderData, market);
+        }
+    }
+
+    async cancelOrders (ids:string[], symbol: Str = undefined, params = {}) {
+        /**
+         * @method
+         * @name allin#cancelOrders
+         * @description cancel multiple orders
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#cancel-all-or-part-of-the-orders-in-order
+         * @param {string[]} ids order ids
+         * @param {string} [symbol] unified market symbol
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         */
+        // spot
+        // {
+        //     'code': 0,
+        //     'data': [
+        //         {
+        //             'symbol': 'BTC-USDT',
+        //             'order_id': '11574744030837944',
+        //             'trade_no': '499016576021202015341',
+        //             'price': '7900',
+        //             'quantity': '1',
+        //             'match_amt': '0',
+        //             'match_qty': '0',
+        //             'match_price': '',
+        //             'side': -1,
+        //             'order_type': 1,
+        //             'create_at': 1574744151836
+        //         },
+        //     ],
+        // }
+        // future {"code": 0, "msg": "success", "data": ["20979038", "20979039"], "time": 1723883453}
+        const currentType = this.options['defaultType'];
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        if (currentType === 'spot') {
+            const request = {
+                'symbol': market['id'],
+                'order_ids': ids.join (','),
             };
+            const response = await this.spotPrivatePostOpenV1OrdersBatcancel (request);
+            const orderDatas = this.safeDict (response, 'data');
+            return this.parseOrders (orderDatas, market);
+        } else {
+            const request = {
+                'market': market['id'],
+                'order_ids': ids.join (','),
+            };
+            const response = await this.futurePrivatePostOpenApiV2OrderCancelBatch (request);
+            const orderDatas = this.safeDict (response, 'data');
+            return this.parseOrders (orderDatas, market);
         }
     }
 
@@ -1943,7 +2041,7 @@ export default class allin extends Exchange {
 
     handleErrors (statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any) {
         if (statusCode >= 400) {
-            throw new NetworkError (this.id + ' ' + statusText);
+            throw new NetworkError (this.id + ' http-code=' + this.numberToString (statusCode) + ', ' + statusText);
         }
         // const response = { 'code': 0,
         //     'msg': 'ok',
@@ -1962,8 +2060,7 @@ export default class allin extends Exchange {
         if (responseCode !== 0) {
             const codeStr = this.numberToString (responseCode);
             const messageNew = this.safeString (response, 'msg');
-            const msg = this.id + ', code: ' + codeStr + ', ' + messageNew;
-            this.log (response);
+            const msg = this.id + ', server-code=' + codeStr + ', ' + messageNew;
             this.throwExactlyMatchedException (this.exceptions['exact'], codeStr, msg);
             // Make sure to throw an exception.
             // throw new ExchangeError (msg);

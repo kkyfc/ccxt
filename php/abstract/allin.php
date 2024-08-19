@@ -127,6 +127,9 @@ abstract class allin extends \ccxt\Exchange {
     public function futureprivate_post_open_api_v2_order_cancel($params = array()) {
         return $this->request('/open/api/v2/order/cancel', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
     }
+    public function futureprivate_post_open_api_v2_order_cancel_batch($params = array()) {
+        return $this->request('/open/api/v2/order/cancel/batch', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
+    }
     public function futureprivate_post_open_api_v2_order_limit($params = array()) {
         return $this->request('/open/api/v2/order/limit', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
     }
@@ -270,6 +273,9 @@ abstract class allin extends \ccxt\Exchange {
     }
     public function futurePrivatePostOpenApiV2OrderCancel($params = array()) {
         return $this->request('/open/api/v2/order/cancel', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
+    }
+    public function futurePrivatePostOpenApiV2OrderCancelBatch($params = array()) {
+        return $this->request('/open/api/v2/order/cancel/batch', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
     }
     public function futurePrivatePostOpenApiV2OrderLimit($params = array()) {
         return $this->request('/open/api/v2/order/limit', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
