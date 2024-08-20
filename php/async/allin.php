@@ -1217,6 +1217,21 @@ class allin extends Exchange {
                 $allinOrderSide = $request['side'];
                 $allinOrderType = $request['order_type'];
                 $orderStatus = 'open';
+                return $this->parse_order(array(
+                    'info' => $response,
+                    'order_id' => $orderId,
+                    'trade_no' => $tradeNo,
+                    'symbol' => $symbolId,
+                    'price' => $price,
+                    'quantity' => $amount,
+                    'match_amt' => '0',
+                    'match_qty' => '0',
+                    'match_price' => '',
+                    'side' => $allinOrderSide,
+                    'order_type' => $allinOrderType,
+                    'status' => $orderStatus,
+                    'create_at' => $timestamp,
+                ), $market);
             } else {
                 $request = $this->create_future_order_request(
                     $symbol,
@@ -1234,28 +1249,8 @@ class allin extends Exchange {
                 }
                 $timestamp = $this->safe_integer($response, 'time');  // $timestamp in s
                 $orderData = $this->safe_dict($response, 'data');
-                $orderId = $this->safe_string($orderData, 'order_id');
-                $orderStatusNum = $this->safe_integer($orderData, 'status');
-                $orderStatus = $this->parse_future_order_status($orderStatusNum);
-                $tradeNo = null;
-                $allinOrderSide = $this->to_order_side($side);
-                $allinOrderType = $this->to_future_order_type($type);
+                return $this->parse_order($orderData, $market);
             }
-            return $this->parse_order(array(
-                'info' => $response,
-                'order_id' => $orderId,
-                'trade_no' => $tradeNo,
-                'symbol' => $symbolId,
-                'price' => $price,
-                'quantity' => $amount,
-                'match_amt' => '0',
-                'match_qty' => '0',
-                'match_price' => '',
-                'side' => $allinOrderSide,
-                'order_type' => $allinOrderType,
-                'status' => $orderStatus,
-                'create_at' => $timestamp,
-            ), $market);
         }) ();
     }
 

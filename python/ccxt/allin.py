@@ -1149,6 +1149,21 @@ class allin(Exchange, ImplicitAPI):
             allinOrderSide = request['side']
             allinOrderType = request['order_type']
             orderStatus = 'open'
+            return self.parse_order({
+                'info': response,
+                'order_id': orderId,
+                'trade_no': tradeNo,
+                'symbol': symbolId,
+                'price': price,
+                'quantity': amount,
+                'match_amt': '0',
+                'match_qty': '0',
+                'match_price': '',
+                'side': allinOrderSide,
+                'order_type': allinOrderType,
+                'status': orderStatus,
+                'create_at': timestamp,
+            }, market)
         else:
             request: dict = self.create_future_order_request(
                 symbol,
@@ -1165,27 +1180,7 @@ class allin(Exchange, ImplicitAPI):
                 response = self.futurePrivatePostOpenApiV2OrderMarket(request)
             timestamp = self.safe_integer(response, 'time')  # timestamp in s
             orderData = self.safe_dict(response, 'data')
-            orderId = self.safe_string(orderData, 'order_id')
-            orderStatusNum = self.safe_integer(orderData, 'status')
-            orderStatus = self.parse_future_order_status(orderStatusNum)
-            tradeNo = None
-            allinOrderSide = self.to_order_side(side)
-            allinOrderType = self.to_future_order_type(type)
-        return self.parse_order({
-            'info': response,
-            'order_id': orderId,
-            'trade_no': tradeNo,
-            'symbol': symbolId,
-            'price': price,
-            'quantity': amount,
-            'match_amt': '0',
-            'match_qty': '0',
-            'match_price': '',
-            'side': allinOrderSide,
-            'order_type': allinOrderType,
-            'status': orderStatus,
-            'create_at': timestamp,
-        }, market)
+            return self.parse_order(orderData, market)
 
     def cancel_order(self, id: str, symbol: Str, params={}) -> {}:
         """

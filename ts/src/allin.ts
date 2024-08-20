@@ -1213,6 +1213,21 @@ export default class allin extends Exchange {
             allinOrderSide = request['side'];
             allinOrderType = request['order_type'];
             orderStatus = 'open';
+            return this.parseOrder ({
+                'info': response,
+                'order_id': orderId,
+                'trade_no': tradeNo,
+                'symbol': symbolId,
+                'price': price,
+                'quantity': amount,
+                'match_amt': '0',
+                'match_qty': '0',
+                'match_price': '',
+                'side': allinOrderSide,
+                'order_type': allinOrderType,
+                'status': orderStatus,
+                'create_at': timestamp,
+            }, market);
         } else {
             const request: Dict = this.createFutureOrderRequest (
                 symbol,
@@ -1230,28 +1245,8 @@ export default class allin extends Exchange {
             }
             timestamp = this.safeInteger (response, 'time');  // timestamp in s
             const orderData = this.safeDict (response, 'data');
-            orderId = this.safeString (orderData, 'order_id');
-            const orderStatusNum = this.safeInteger (orderData, 'status');
-            orderStatus = this.parseFutureOrderStatus (orderStatusNum);
-            tradeNo = undefined;
-            allinOrderSide = this.toOrderSide (side);
-            allinOrderType = this.toFutureOrderType (type);
+            return this.parseOrder (orderData, market);
         }
-        return this.parseOrder ({
-            'info': response,
-            'order_id': orderId,
-            'trade_no': tradeNo,
-            'symbol': symbolId,
-            'price': price,
-            'quantity': amount,
-            'match_amt': '0',
-            'match_qty': '0',
-            'match_price': '',
-            'side': allinOrderSide,
-            'order_type': allinOrderType,
-            'status': orderStatus,
-            'create_at': timestamp,
-        }, market);
     }
 
     async cancelOrder (id: string, symbol: Str, params = {}): Promise<{}> {
