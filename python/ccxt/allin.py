@@ -1089,14 +1089,30 @@ class allin(Exchange, ImplicitAPI):
         :param float [price]: the price that the order is to be fullfilled, in units of the quote currency, ignored in market orders
         :param dict [params]: extra parameters specific to the exchange API endpoint
         """
-        # {
-        #     "code": 0,
-        #     "msg": "ok",
-        #     "data": {
-        #         "order_id": "xxx",
-        #         "trade_no": "xxx",
-        #     },
-        # }
+        # spot = {'code': 0,
+        #     'msg': 'ok',
+        #     'data': {'create_at': 1724217619.237232,
+        #         'frm': 'USDT',
+        #         'left': '0.000000',
+        #         'match_amt': '5939.74200000',
+        #         'match_price': '59397.42',
+        #         'match_qty': '0.100000',
+        #         'order_id': '112321459',
+        #         'order_sub_type': 0,
+        #         'order_type': 'LIMIT',
+        #         'price': '60000.21',
+        #         'quantity': '0.100000',
+        #         'side': 2,
+        #         'status': 3,
+        #         'stop_price': '0',
+        #         'symbol': 'BTC-USDT',
+        #         'ticker': 'BTC-USDT',
+        #         'ticker_id': 7,
+        #         'timestamp': 1724217619.237232,
+        #         'to': 'BTC',
+        #         'trade_no': '40546382832340918031114',
+        #         'update_timestamp': 1724217619.237275},
+        #     'time': 1724217619.237593}
         # future
         # future = {'code': 0,
         #     'msg': 'success',
@@ -1123,14 +1139,7 @@ class allin(Exchange, ImplicitAPI):
         #     'time': 1723130482}
         self.load_markets()
         market = self.market(symbol)
-        symbolId = self.safe_string(market, 'id')
         response = None
-        allinOrderSide = None
-        allinOrderType = None
-        timestamp = None  # timestamp in s
-        orderId = None
-        tradeNo = None
-        orderStatus = None
         if market['spot']:
             request: dict = self.create_spot_order_request(
                 symbol,
@@ -1143,27 +1152,7 @@ class allin(Exchange, ImplicitAPI):
             )
             response = self.spotPrivatePostOpenV1OrdersPlace(request)
             orderData = self.safe_dict(response, 'data')
-            timestamp = self.safe_integer(response, 'time')  # timestamp in s
-            orderId = self.safe_string(orderData, 'order_id')
-            tradeNo = self.safe_string(orderData, 'trade_no')
-            allinOrderSide = request['side']
-            allinOrderType = request['order_type']
-            orderStatus = 'open'
-            return self.parse_order({
-                'info': response,
-                'order_id': orderId,
-                'trade_no': tradeNo,
-                'symbol': symbolId,
-                'price': price,
-                'quantity': amount,
-                'match_amt': '0',
-                'match_qty': '0',
-                'match_price': '',
-                'side': allinOrderSide,
-                'order_type': allinOrderType,
-                'status': orderStatus,
-                'create_at': timestamp,
-            }, market)
+            return self.parse_order(orderData, market)
         else:
             request: dict = self.create_future_order_request(
                 symbol,
@@ -1178,7 +1167,6 @@ class allin(Exchange, ImplicitAPI):
                 response = self.futurePrivatePostOpenApiV2OrderLimit(request)
             else:
                 response = self.futurePrivatePostOpenApiV2OrderMarket(request)
-            timestamp = self.safe_integer(response, 'time')  # timestamp in s
             orderData = self.safe_dict(response, 'data')
             return self.parse_order(orderData, market)
 
@@ -1685,6 +1673,28 @@ class allin(Exchange, ImplicitAPI):
         return self.safe_string(statusDict, statusStr)
 
     def parse_order(self, order: dict, market: Market) -> Order:
+        #  # create spot order
+        #     'data': {'create_at': 1724217619.237232,
+        #         'frm': 'USDT',
+        #         'left': '0.000000',
+        #         'match_amt': '5939.74200000',
+        #         'match_price': '59397.42',
+        #         'match_qty': '0.100000',
+        #         'order_id': '112321459',
+        #         'order_sub_type': 0,
+        #         'order_type': 'LIMIT',
+        #         'price': '60000.21',
+        #         'quantity': '0.100000',
+        #         'side': 2,
+        #         'status': 3,
+        #         'stop_price': '0',
+        #         'symbol': 'BTC-USDT',
+        #         'ticker': 'BTC-USDT',
+        #         'ticker_id': 7,
+        #         'timestamp': 1724217619.237232,
+        #         'to': 'BTC',
+        #         'trade_no': '40546382832340918031114',
+        #         'update_timestamp': 1724217619.237275},
         #  # fetchOrders  #
         # order = {
         #     'order_id': '11574744030837944',
@@ -1751,7 +1761,7 @@ class allin(Exchange, ImplicitAPI):
         #     },
         # }
         timestamp = self.safe_timestamp_2(order, 'create_at', 'create_time')
-        updateAt = timestamp
+        updateAt = self.safe_timestamp_2(order, 'update_time', 'update_timestamp')
         symbol = self.safe_string_2(market, 'symbol', 'market')
         side = self.parse_order_side(self.safe_integer(order, 'side'))
         price = self.safe_string(order, 'price')
@@ -1774,7 +1784,6 @@ class allin(Exchange, ImplicitAPI):
             status = self.parse_spot_order_status(self.safe_integer(order, 'status'))
         else:
             status = self.parse_future_order_status(self.safe_integer(order, 'status'))
-            updateAt = self.safe_timestamp(order, 'update_time', timestamp)
         return self.safe_order({
             'info': order,
             'id': self.safe_string(order, 'order_id'),

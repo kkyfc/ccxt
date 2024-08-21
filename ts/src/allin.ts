@@ -1153,14 +1153,30 @@ export default class allin extends Exchange {
          * @param {float} [price] the price that the order is to be fullfilled, in units of the quote currency, ignored in market orders
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          */
-        // {
-        //     "code": 0,
-        //     "msg": "ok",
-        //     "data": {
-        //         "order_id": "xxx",
-        //         "trade_no": "xxx",
-        //     },
-        // }
+        // const spot = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': { 'create_at': 1724217619.237232,
+        //         'frm': 'USDT',
+        //         'left': '0.000000',
+        //         'match_amt': '5939.74200000',
+        //         'match_price': '59397.42',
+        //         'match_qty': '0.100000',
+        //         'order_id': '112321459',
+        //         'order_sub_type': 0,
+        //         'order_type': 'LIMIT',
+        //         'price': '60000.21',
+        //         'quantity': '0.100000',
+        //         'side': 2,
+        //         'status': 3,
+        //         'stop_price': '0',
+        //         'symbol': 'BTC-USDT',
+        //         'ticker': 'BTC-USDT',
+        //         'ticker_id': 7,
+        //         'timestamp': 1724217619.237232,
+        //         'to': 'BTC',
+        //         'trade_no': '40546382832340918031114',
+        //         'update_timestamp': 1724217619.237275 },
+        //     'time': 1724217619.237593 };
         // future
         // const future = { 'code': 0,
         //     'msg': 'success',
@@ -1187,14 +1203,7 @@ export default class allin extends Exchange {
         //     'time': 1723130482 };
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const symbolId = this.safeString (market, 'id');
         let response = undefined;
-        let allinOrderSide = undefined;
-        let allinOrderType = undefined;
-        let timestamp = undefined;  // timestamp in s
-        let orderId = undefined;
-        let tradeNo = undefined;
-        let orderStatus = undefined;
         if (market['spot']) {
             const request: Dict = this.createSpotOrderRequest (
                 symbol,
@@ -1207,27 +1216,7 @@ export default class allin extends Exchange {
             );
             response = await this.spotPrivatePostOpenV1OrdersPlace (request);
             const orderData = this.safeDict (response, 'data');
-            timestamp = this.safeInteger (response, 'time');  // timestamp in s
-            orderId = this.safeString (orderData, 'order_id');
-            tradeNo = this.safeString (orderData, 'trade_no');
-            allinOrderSide = request['side'];
-            allinOrderType = request['order_type'];
-            orderStatus = 'open';
-            return this.parseOrder ({
-                'info': response,
-                'order_id': orderId,
-                'trade_no': tradeNo,
-                'symbol': symbolId,
-                'price': price,
-                'quantity': amount,
-                'match_amt': '0',
-                'match_qty': '0',
-                'match_price': '',
-                'side': allinOrderSide,
-                'order_type': allinOrderType,
-                'status': orderStatus,
-                'create_at': timestamp,
-            }, market);
+            return this.parseOrder (orderData, market);
         } else {
             const request: Dict = this.createFutureOrderRequest (
                 symbol,
@@ -1243,7 +1232,6 @@ export default class allin extends Exchange {
             } else {
                 response = await this.futurePrivatePostOpenApiV2OrderMarket (request);
             }
-            timestamp = this.safeInteger (response, 'time');  // timestamp in s
             const orderData = this.safeDict (response, 'data');
             return this.parseOrder (orderData, market);
         }
@@ -1799,6 +1787,28 @@ export default class allin extends Exchange {
     }
 
     parseOrder (order: Dict, market?: Market): Order {
+        // // create spot order
+        //     'data': { 'create_at': 1724217619.237232,
+        //         'frm': 'USDT',
+        //         'left': '0.000000',
+        //         'match_amt': '5939.74200000',
+        //         'match_price': '59397.42',
+        //         'match_qty': '0.100000',
+        //         'order_id': '112321459',
+        //         'order_sub_type': 0,
+        //         'order_type': 'LIMIT',
+        //         'price': '60000.21',
+        //         'quantity': '0.100000',
+        //         'side': 2,
+        //         'status': 3,
+        //         'stop_price': '0',
+        //         'symbol': 'BTC-USDT',
+        //         'ticker': 'BTC-USDT',
+        //         'ticker_id': 7,
+        //         'timestamp': 1724217619.237232,
+        //         'to': 'BTC',
+        //         'trade_no': '40546382832340918031114',
+        //         'update_timestamp': 1724217619.237275 },
         // // fetchOrders //
         // const order = {
         //     'order_id': '11574744030837944',
@@ -1865,7 +1875,7 @@ export default class allin extends Exchange {
         //     },
         // };
         const timestamp = this.safeTimestamp2 (order, 'create_at', 'create_time');
-        let updateAt = timestamp;
+        const updateAt = this.safeTimestamp2 (order, 'update_time', 'update_timestamp');
         const symbol = this.safeString2 (market, 'symbol', 'market');
         const side = this.parseOrderSide (this.safeInteger (order, 'side'));
         const price = this.safeString (order, 'price');
@@ -1889,7 +1899,6 @@ export default class allin extends Exchange {
             status = this.parseSpotOrderStatus (this.safeInteger (order, 'status'));
         } else {
             status = this.parseFutureOrderStatus (this.safeInteger (order, 'status'));
-            updateAt = this.safeTimestamp (order, 'update_time', timestamp);
         }
         return this.safeOrder ({
             'info': order,

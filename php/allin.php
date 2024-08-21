@@ -1125,14 +1125,30 @@ class allin extends Exchange {
          * @param {float} [$price] the $price that the order is to be fullfilled, in units of the quote currency, ignored in $market orders
          * @param {array} [$params] extra parameters specific to the exchange API endpoint
          */
-        // {
-        //     "code" => 0,
-        //     "msg" => "ok",
-        //     "data" => array(
-        //         "order_id" => "xxx",
-        //         "trade_no" => "xxx",
-        //     ),
-        // }
+        // $spot = array( 'code' => 0,
+        //     'msg' => 'ok',
+        //     'data' => array( 'create_at' => 1724217619.237232,
+        //         'frm' => 'USDT',
+        //         'left' => '0.000000',
+        //         'match_amt' => '5939.74200000',
+        //         'match_price' => '59397.42',
+        //         'match_qty' => '0.100000',
+        //         'order_id' => '112321459',
+        //         'order_sub_type' => 0,
+        //         'order_type' => 'LIMIT',
+        //         'price' => '60000.21',
+        //         'quantity' => '0.100000',
+        //         'side' => 2,
+        //         'status' => 3,
+        //         'stop_price' => '0',
+        //         'symbol' => 'BTC-USDT',
+        //         'ticker' => 'BTC-USDT',
+        //         'ticker_id' => 7,
+        //         'timestamp' => 1724217619.237232,
+        //         'to' => 'BTC',
+        //         'trade_no' => '40546382832340918031114',
+        //         'update_timestamp' => 1724217619.237275 ),
+        //     'time' => 1724217619.237593 );
         // $future
         // $future = array( 'code' => 0,
         //     'msg' => 'success',
@@ -1159,14 +1175,7 @@ class allin extends Exchange {
         //     'time' => 1723130482 );
         $this->load_markets();
         $market = $this->market($symbol);
-        $symbolId = $this->safe_string($market, 'id');
         $response = null;
-        $allinOrderSide = null;
-        $allinOrderType = null;
-        $timestamp = null;  // $timestamp in s
-        $orderId = null;
-        $tradeNo = null;
-        $orderStatus = null;
         if ($market['spot']) {
             $request = $this->create_spot_order_request(
                 $symbol,
@@ -1179,27 +1188,7 @@ class allin extends Exchange {
             );
             $response = $this->spotPrivatePostOpenV1OrdersPlace ($request);
             $orderData = $this->safe_dict($response, 'data');
-            $timestamp = $this->safe_integer($response, 'time');  // $timestamp in s
-            $orderId = $this->safe_string($orderData, 'order_id');
-            $tradeNo = $this->safe_string($orderData, 'trade_no');
-            $allinOrderSide = $request['side'];
-            $allinOrderType = $request['order_type'];
-            $orderStatus = 'open';
-            return $this->parse_order(array(
-                'info' => $response,
-                'order_id' => $orderId,
-                'trade_no' => $tradeNo,
-                'symbol' => $symbolId,
-                'price' => $price,
-                'quantity' => $amount,
-                'match_amt' => '0',
-                'match_qty' => '0',
-                'match_price' => '',
-                'side' => $allinOrderSide,
-                'order_type' => $allinOrderType,
-                'status' => $orderStatus,
-                'create_at' => $timestamp,
-            ), $market);
+            return $this->parse_order($orderData, $market);
         } else {
             $request = $this->create_future_order_request(
                 $symbol,
@@ -1215,7 +1204,6 @@ class allin extends Exchange {
             } else {
                 $response = $this->futurePrivatePostOpenApiV2OrderMarket ($request);
             }
-            $timestamp = $this->safe_integer($response, 'time');  // $timestamp in s
             $orderData = $this->safe_dict($response, 'data');
             return $this->parse_order($orderData, $market);
         }
@@ -1765,6 +1753,28 @@ class allin extends Exchange {
     }
 
     public function parse_order(array $order, ?array $market): array {
+        // // create spot $order
+        //     'data' => array( 'create_at' => 1724217619.237232,
+        //         'frm' => 'USDT',
+        //         'left' => '0.000000',
+        //         'match_amt' => '5939.74200000',
+        //         'match_price' => '59397.42',
+        //         'match_qty' => '0.100000',
+        //         'order_id' => '112321459',
+        //         'order_sub_type' => 0,
+        //         'order_type' => 'LIMIT',
+        //         'price' => '60000.21',
+        //         'quantity' => '0.100000',
+        //         'side' => 2,
+        //         'status' => 3,
+        //         'stop_price' => '0',
+        //         'symbol' => 'BTC-USDT',
+        //         'ticker' => 'BTC-USDT',
+        //         'ticker_id' => 7,
+        //         'timestamp' => 1724217619.237232,
+        //         'to' => 'BTC',
+        //         'trade_no' => '40546382832340918031114',
+        //         'update_timestamp' => 1724217619.237275 ),
         // // fetchOrders //
         // $order = array(
         //     'order_id' => '11574744030837944',
@@ -1831,7 +1841,7 @@ class allin extends Exchange {
         //     ),
         // );
         $timestamp = $this->safe_timestamp_2($order, 'create_at', 'create_time');
-        $updateAt = $timestamp;
+        $updateAt = $this->safe_timestamp_2($order, 'update_time', 'update_timestamp');
         $symbol = $this->safe_string_2($market, 'symbol', 'market');
         $side = $this->parse_order_side($this->safe_integer($order, 'side'));
         $price = $this->safe_string($order, 'price');
@@ -1855,7 +1865,6 @@ class allin extends Exchange {
             $status = $this->parse_spot_order_status($this->safe_integer($order, 'status'));
         } else {
             $status = $this->parse_future_order_status($this->safe_integer($order, 'status'));
-            $updateAt = $this->safe_timestamp($order, 'update_time', $timestamp);
         }
         return $this->safe_order(array(
             'info' => $order,
