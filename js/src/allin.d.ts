@@ -39,7 +39,7 @@ export default class allin extends Exchange {
     parseOHLCV(ohlcv: any, market?: Market): OHLCV;
     parseLowerTimeframe(timeframeId: string): any;
     parseTrade(trade: Dict, market?: Market): Trade;
-    parseOrderType(type_: Str): "market" | "limit";
+    parseOrderType(type_: Str): "limit" | "market";
     toSpotOrderType(type_: string): "LIMIT" | "MARKET";
     toFutureOrderType(type_: string): 2 | 1;
     parseOrderSide(side: Int): "buy" | "sell";
@@ -53,4 +53,5 @@ export default class allin extends Exchange {
     parseLeverageMode(modeNum: Int): "isolated" | "cross";
     parseLeverage(leverage: any, market: any): Leverage;
     handleErrors(statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any): any;
+    throwExactlyMatchedException(exact: any, string: any, message: any): void;
 }
