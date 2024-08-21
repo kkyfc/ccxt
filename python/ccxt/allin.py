@@ -1939,5 +1939,11 @@ class allin(Exchange, ImplicitAPI):
             messageNew = self.safe_string(response, 'msg')
             msg = self.id + ', server-code=' + codeStr + ', ' + messageNew
             self.throw_exactly_matched_exception(self.exceptions['exact'], codeStr, msg)
-            # Make sure to raise an exception.
-            # raise ExchangeError(msg)
+
+    def throw_exactly_matched_exception(self, exact, string, message):
+        if string is None:
+            return
+        if string in exact:
+            raise exact[string](message)
+        else:
+            raise ExchangeError(message)

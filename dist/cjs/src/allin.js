@@ -2026,8 +2026,17 @@ class allin extends allin$1 {
             const messageNew = this.safeString(response, 'msg');
             const msg = this.id + ', server-code=' + codeStr + ', ' + messageNew;
             this.throwExactlyMatchedException(this.exceptions['exact'], codeStr, msg);
-            // Make sure to throw an exception.
-            // throw new ExchangeError (msg);
+        }
+    }
+    throwExactlyMatchedException(exact, string, message) {
+        if (string === undefined) {
+            return;
+        }
+        if (string in exact) {
+            throw new exact[string](message);
+        }
+        else {
+            throw new errors.ExchangeError(message);
         }
     }
 }

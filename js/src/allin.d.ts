@@ -53,4 +53,5 @@ export default class allin extends Exchange {
     parseLeverageMode(modeNum: Int): "isolated" | "cross";
     parseLeverage(leverage: any, market: any): Leverage;
     handleErrors(statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any): any;
+    throwExactlyMatchedException(exact: any, string: any, message: any): void;
 }

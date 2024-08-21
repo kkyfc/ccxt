@@ -2071,8 +2071,17 @@ class allin extends Exchange {
             $messageNew = $this->safe_string($response, 'msg');
             $msg = $this->id . ', server-code=' . $codeStr . ', ' . $messageNew;
             $this->throw_exactly_matched_exception($this->exceptions['exact'], $codeStr, $msg);
-            // Make sure to throw an exception.
-            // throw new ExchangeError($msg);
+        }
+    }
+
+    public function throw_exactly_matched_exception($exact, $string, $message) {
+        if ($string === null) {
+            return;
+        }
+        if (is_array($exact) && array_key_exists($string, $exact)) {
+            throw new $exact[$string]($message);
+        } else {
+            throw new ExchangeError($message);
         }
     }
 }
