@@ -42,6 +42,7 @@ class ImplicitAPI:
     futureprivate_post_open_api_v2_order_market = futurePrivatePostOpenApiV2OrderMarket = Entry('/open/api/v2/order/market', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_order_cancel_all = futurePrivatePostOpenApiV2OrderCancelAll = Entry('/open/api/v2/order/cancel/all', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_order_cancel = futurePrivatePostOpenApiV2OrderCancel = Entry('/open/api/v2/order/cancel', 'futurePrivate', 'POST', {'cost': 0})
+    futureprivate_post_open_api_v2_order_cancel_batch = futurePrivatePostOpenApiV2OrderCancelBatch = Entry('/open/api/v2/order/cancel/batch', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_order_limit = futurePrivatePostOpenApiV2OrderLimit = Entry('/open/api/v2/order/limit', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_order_stop = futurePrivatePostOpenApiV2OrderStop = Entry('/open/api/v2/order/stop', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_order_stop_cancel = futurePrivatePostOpenApiV2OrderStopCancel = Entry('/open/api/v2/order/stop/cancel', 'futurePrivate', 'POST', {'cost': 0})

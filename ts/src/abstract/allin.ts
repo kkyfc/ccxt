@@ -49,6 +49,7 @@ interface Exchange {
     futurePrivatePostOpenApiV2OrderMarket (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderCancelAll (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderCancel (params?: {}): Promise<implicitReturnType>;
+    futurePrivatePostOpenApiV2OrderCancelBatch (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderLimit (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderStop (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderStopCancel (params?: {}): Promise<implicitReturnType>;

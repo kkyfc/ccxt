@@ -23,6 +23,7 @@ export default class allin extends Exchange {
     fetchTrades(symbol: string, since?: Int, limit?: Int, params?: {}): Promise<Trade[]>;
     createOrder(symbol: string, type: OrderType, side: OrderSide, amount: number, price?: Num, params?: {}): Promise<Order>;
     cancelOrder(id: string, symbol: Str, params?: {}): Promise<{}>;
+    cancelOrders(ids: string[], symbol?: Str, params?: {}): Promise<Order[]>;
     createSpotOrderRequest(symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict;
     createFutureOrderRequest(symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict;
     sign(path: any, api?: string, method?: string, params?: {}, headers?: any, body?: any): {
