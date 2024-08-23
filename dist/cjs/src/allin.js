@@ -662,6 +662,28 @@ class allin extends allin$1 {
         //         { 'price': '73104.20', 'quantity': '0.040996' },
         //         { 'price': '78000.00', 'quantity': '0.003000' } ] },
         //     'time': 1721550050 };
+        // future {
+        //     "code": 0,
+        //     "msg": "success",
+        //     "data": {
+        //       "index_price": "1577.63",
+        //       "sign_price": "1581.5",
+        //       "time": 1697620709569,
+        //       "last": "1573.89",
+        //       "asks": [
+        //         [
+        //           "1621.22",
+        //           "30.613"
+        //         ]
+        //       ],
+        //       "bids": [
+        //         [
+        //           "1573.84",
+        //           "0.819"
+        //         ]
+        //       ]
+        //     }
+        //   }
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' fetchOrderBook() requires a symbol argument');
         }
@@ -684,7 +706,11 @@ class allin extends allin$1 {
             response = await this.futurePublicGetOpenApiV2MarketDepth(request);
             const result = this.safeDict(response, 'data', {});
             const timestamp = this.safeInteger(result, 'time');
-            return this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 0, 1);
+            const orderbook = this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 0, 1);
+            orderbook['markPrice'] = this.safeFloat(result, 'sign_price');
+            orderbook['indexPrice'] = this.safeFloat(result, 'index_price');
+            orderbook['lastPrice'] = this.safeFloat(result, 'last');
+            return orderbook;
         }
     }
     async fetchBalance(params = {}) {

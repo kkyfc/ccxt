@@ -435,10 +435,14 @@ class allin extends \ccxt\async\allin {
         $snapshot = null;
         if ($market['spot']) {
             $snapshot = $this->parse_order_book($abData, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
+            $orderbook->reset ($snapshot);
         } else {
             $snapshot = $this->parse_order_book($abData, $symbol, $timestamp, 'bids', 'asks', 0, 1);
+            $orderbook->reset ($snapshot);
+            $orderbook['markPrice'] = $this->safe_float($result, 'sign_price');
+            $orderbook['indexPrice'] = $this->safe_float($result, 'index_price');
+            $orderbook['lastPrice'] = $this->safe_float($result, 'last');
         }
-        $orderbook->reset ($snapshot);
         $this->orderbooks[$symbol] = $orderbook;
         $client->resolve ($orderbook, $messageHash);
     }

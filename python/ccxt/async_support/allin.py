@@ -676,6 +676,28 @@ class allin(Exchange, ImplicitAPI):
         #         {'price': '73104.20', 'quantity': '0.040996'},
         #         {'price': '78000.00', 'quantity': '0.003000'}]},
         #     'time': 1721550050}
+        # future {
+        #     "code": 0,
+        #     "msg": "success",
+        #     "data": {
+        #       "index_price": "1577.63",
+        #       "sign_price": "1581.5",
+        #       "time": 1697620709569,
+        #       "last": "1573.89",
+        #       "asks": [
+        #         [
+        #           "1621.22",
+        #           "30.613"
+        #         ]
+        #       ],
+        #       "bids": [
+        #         [
+        #           "1573.84",
+        #           "0.819"
+        #         ]
+        #       ]
+        #     }
+        #   }
         if symbol is None:
             raise ArgumentsRequired(self.id + ' fetchOrderBook() requires a symbol argument')
         await self.load_markets()
@@ -696,7 +718,11 @@ class allin(Exchange, ImplicitAPI):
             response = await self.futurePublicGetOpenApiV2MarketDepth(request)
             result = self.safe_dict(response, 'data', {})
             timestamp = self.safe_integer(result, 'time')
-            return self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 0, 1)
+            orderbook = self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 0, 1)
+            orderbook['markPrice'] = self.safe_float(result, 'sign_price')
+            orderbook['indexPrice'] = self.safe_float(result, 'index_price')
+            orderbook['lastPrice'] = self.safe_float(result, 'last')
+            return orderbook
 
     async def fetch_balance(self, params={}) -> Balances:
         """

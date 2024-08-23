@@ -399,9 +399,13 @@ class allin(ccxt.async_support.allin):
         snapshot = None
         if market['spot']:
             snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+            orderbook.reset(snapshot)
         else:
             snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 0, 1)
-        orderbook.reset(snapshot)
+            orderbook.reset(snapshot)
+            orderbook['markPrice'] = self.safe_float(result, 'sign_price')
+            orderbook['indexPrice'] = self.safe_float(result, 'index_price')
+            orderbook['lastPrice'] = self.safe_float(result, 'last')
         self.orderbooks[symbol] = orderbook
         client.resolve(orderbook, messageHash)
 
