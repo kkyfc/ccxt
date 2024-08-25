@@ -42,9 +42,9 @@ class allin(ccxt.async_support.allin):
             'urls': {
                 'test': {
                     'ws': {
-                        'spot': 'wss://ws.allintest.pro/ws',
-                        'future': 'wss://api.allintest.pro/futures/wsf',
-                        'swap': 'wss://api.allintest.pro/futures/wsf',
+                        'spot': 'ws://ws.aie.test/ws',
+                        'future': 'ws://futuresws.aie.test/wsf',
+                        'swap': 'ws://futuresws.aie.test/wsf',
                     },
                 },
                 'api': {

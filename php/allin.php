@@ -145,10 +145,10 @@ class allin extends Exchange {
             ),
             'urls' => array(
                 'test' => array(
-                    'spotPublic' => 'https://api.allintest.pro',
-                    'spotPrivate' => 'https://api.allintest.pro',
-                    'futurePublic' => 'https://api.allintest.pro/futuresopen',
-                    'futurePrivate' => 'https://api.allintest.pro/futuresopen',
+                    'spotPublic' => 'http://api.aie.test',
+                    'spotPrivate' => 'http://api.aie.test',
+                    'futurePublic' => 'http://futuresopen.aie.test',
+                    'futurePrivate' => 'http://futuresopen.aie.test',
                 ),
                 'logo' => 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc' => array( 'https://allinexchange.github.io/spot-docs/v1/en/#introduction' ),

@@ -40,9 +40,9 @@ class allin extends \ccxt\async\allin {
             'urls' => array(
                 'test' => array(
                     'ws' => array(
-                        'spot' => 'wss://ws.allintest.pro/ws',
-                        'future' => 'wss://api.allintest.pro/futures/wsf',
-                        'swap' => 'wss://api.allintest.pro/futures/wsf',
+                        'spot' => 'ws://ws.aie.test/ws',
+                        'future' => 'ws://futuresws.aie.test/wsf',
+                        'swap' => 'ws://futuresws.aie.test/wsf',
                     ),
                 ),
                 'api' => array(
