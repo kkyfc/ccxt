@@ -422,11 +422,15 @@ class allin extends allin$1 {
         let snapshot = undefined;
         if (market['spot']) {
             snapshot = this.parseOrderBook(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+            orderbook.reset(snapshot);
         }
         else {
             snapshot = this.parseOrderBook(abData, symbol, timestamp, 'bids', 'asks', 0, 1);
+            orderbook.reset(snapshot);
+            orderbook['markPrice'] = this.safeFloat(result, 'sign_price');
+            orderbook['indexPrice'] = this.safeFloat(result, 'index_price');
+            orderbook['lastPrice'] = this.safeFloat(result, 'last');
         }
-        orderbook.reset(snapshot);
         this.orderbooks[symbol] = orderbook;
         client.resolve(orderbook, messageHash);
     }

@@ -674,6 +674,28 @@ class allin extends Exchange {
         //         array( 'price' => '73104.20', 'quantity' => '0.040996' ),
         //         array( 'price' => '78000.00', 'quantity' => '0.003000' ) ) ),
         //     'time' => 1721550050 );
+        // future {
+        //     "code" => 0,
+        //     "msg" => "success",
+        //     "data" => {
+        //       "index_price" => "1577.63",
+        //       "sign_price" => "1581.5",
+        //       "time" => 1697620709569,
+        //       "last" => "1573.89",
+        //       "asks" => array(
+        //         array(
+        //           "1621.22",
+        //           "30.613"
+        //         )
+        //       ),
+        //       "bids" => array(
+        //         array(
+        //           "1573.84",
+        //           "0.819"
+        //         )
+        //       )
+        //     }
+        //   }
         if ($symbol === null) {
             throw new ArgumentsRequired($this->id . ' fetchOrderBook() requires a $symbol argument');
         }
@@ -695,7 +717,11 @@ class allin extends Exchange {
             $response = $this->futurePublicGetOpenApiV2MarketDepth ($request);
             $result = $this->safe_dict($response, 'data', array());
             $timestamp = $this->safe_integer($result, 'time');
-            return $this->parse_order_book($result, $symbol, $timestamp, 'bids', 'asks', 0, 1);
+            $orderbook = $this->parse_order_book($result, $symbol, $timestamp, 'bids', 'asks', 0, 1);
+            $orderbook['markPrice'] = $this->safe_float($result, 'sign_price');
+            $orderbook['indexPrice'] = $this->safe_float($result, 'index_price');
+            $orderbook['lastPrice'] = $this->safe_float($result, 'last');
+            return $orderbook;
         }
     }
 
