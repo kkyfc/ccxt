@@ -1392,6 +1392,25 @@ class allin extends Exchange {
         return $request;
     }
 
+    public function fetch_funding_rate(string $symbol, $params = array ()) {
+        /**
+         * fetch the current funding rate
+         */
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'market' => $market['id'],
+        );
+        $response = null;
+        if ($market['future'] || $market['swap']) {
+            $response = $this->futurePublicGetOpenApiV2MarketState ($request);
+        } else {
+            throw new NotSupported($this->id . ' fetchFundingRate() supports linear and inverse contracts only');
+        }
+        $data = $this->safe_dict($response, 'data', array());
+        return $this->parse_funding_rate($data, $market);
+    }
+
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
         $url = $this->implode_hostname($this->urls['api'][$api]) . $path;
         $nonce = (string) $this->nonce();
@@ -1450,6 +1469,48 @@ class allin extends Exchange {
             return $this->futurePrivatePostOpenApiV2SettingLeverage ($request);
         }
         return array();
+    }
+
+    public function parse_funding_rate($contract, ?array $market = null): array {
+        //     "data" => {
+        //       "market" => "ETHUSDT",
+        //       "amount" => "4753.05",
+        //       "high" => "1573.89",
+        //       "last" => "1573.89",
+        //       "low" => "1571.23",
+        //       "open" => "1571.23",
+        //       "change" => "0.0016929411989333",
+        //       "period" => 86400,
+        //       "volume" => "3.02",
+        //       "funding_time" => 400,
+        //       "position_amount" => "2.100",
+        //       "funding_rate_last" => "0.00375",
+        //       "funding_rate_next" => "0.00293873",
+        //       "funding_rate_predict" => "-0.00088999",
+        //       "insurance" => "10500.45426906585552617850",
+        //       "sign_price" => "1581.98",
+        //       "index_price" => "1578.12",
+        //       "sell_total" => "112.974",
+        //       "buy_total" => "170.914"
+        //     }
+        $timestamp = $this->milliseconds();
+        return array(
+            'info' => $contract,
+            'symbol' => $market['symbol'],
+            'markPrice' => $this->safe_float($contract, 'sign_price'),
+            'indexPrice' => $this->safe_float($contract, 'index_price'),
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'fundingRate' => $this->safe_float($contract, 'funding_rate_last'),
+            'nextFundingRate' => $this->safe_float($contract, 'funding_rate_next'),
+            'previousFundingRate' => $this->safe_float($contract, 'funding_rate_predict'),
+            'nextFundingTimestamp' => null,
+            'nextFundingDatetime' => null,
+            'previousFundingTimestamp' => null,
+            'previousFundingDatetime' => null,
+            'fundingTimestamp' => $timestamp,
+            'interestRate' => null,
+        );
     }
 
     public function parse_ticker(array $ticker, ?array $market = null): array {

@@ -6,10 +6,10 @@ import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError,
     OrderNotFound, AuthenticationError, RateLimitExceeded, BadSymbol,
     OperationFailed, BaseError,
     InsufficientFunds, OperationRejected,
-    OrderNotFillable, InvalidOrder } from './base/errors.js';
+    OrderNotFillable, InvalidOrder, NotSupported } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
-import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage } from './base/types.js';
+import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage, FundingRate } from './base/types.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -1424,6 +1424,27 @@ export default class allin extends Exchange {
         return request;
     }
 
+    async fetchFundingRate (symbol: string, params = {}) {
+        /**
+         * @method
+         * @name allin#fetchFundingRate
+         * @description fetch the current funding rate
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request: Dict = {
+            'market': market['id'],
+        };
+        let response = undefined;
+        if (market['future'] || market['swap']) {
+            response = await this.futurePublicGetOpenApiV2MarketState (request);
+        } else {
+            throw new NotSupported (this.id + ' fetchFundingRate() supports linear and inverse contracts only');
+        }
+        const data = this.safeDict (response, 'data', {});
+        return this.parseFundingRate (data, market);
+    }
+
     sign (path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.implodeHostname (this.urls['api'][api]) + path;
         const nonce = this.nonce ().toString ();
@@ -1484,6 +1505,48 @@ export default class allin extends Exchange {
             return await this.futurePrivatePostOpenApiV2SettingLeverage (request);
         }
         return {};
+    }
+
+    parseFundingRate (contract, market: Market = undefined): FundingRate {
+        //     "data": {
+        //       "market": "ETHUSDT",
+        //       "amount": "4753.05",
+        //       "high": "1573.89",
+        //       "last": "1573.89",
+        //       "low": "1571.23",
+        //       "open": "1571.23",
+        //       "change": "0.0016929411989333",
+        //       "period": 86400,
+        //       "volume": "3.02",
+        //       "funding_time": 400,
+        //       "position_amount": "2.100",
+        //       "funding_rate_last": "0.00375",
+        //       "funding_rate_next": "0.00293873",
+        //       "funding_rate_predict": "-0.00088999",
+        //       "insurance": "10500.45426906585552617850",
+        //       "sign_price": "1581.98",
+        //       "index_price": "1578.12",
+        //       "sell_total": "112.974",
+        //       "buy_total": "170.914"
+        //     }
+        const timestamp = this.milliseconds ();
+        return {
+            'info': contract,
+            'symbol': market['symbol'],
+            'markPrice': this.safeFloat (contract, 'sign_price'),
+            'indexPrice': this.safeFloat (contract, 'index_price'),
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'fundingRate': this.safeFloat (contract, 'funding_rate_last'),
+            'nextFundingRate': this.safeFloat (contract, 'funding_rate_next'),
+            'previousFundingRate': this.safeFloat (contract, 'funding_rate_predict'),
+            'nextFundingTimestamp': undefined,
+            'nextFundingDatetime': undefined,
+            'previousFundingTimestamp': undefined,
+            'previousFundingDatetime': undefined,
+            'fundingTimestamp': timestamp,
+            'interestRate': undefined,
+        };
     }
 
     parseTicker (ticker: Dict, market: Market = undefined): Ticker {

@@ -7,7 +7,7 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import asyncio
 import hashlib
-from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, Trade, Num
+from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade, Num
 from typing import List
 from ccxt.base.errors import BaseError
 from ccxt.base.errors import ExchangeError
@@ -20,6 +20,7 @@ from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import OrderNotFillable
+from ccxt.base.errors import NotSupported
 from ccxt.base.errors import OperationFailed
 from ccxt.base.errors import NetworkError
 from ccxt.base.errors import RateLimitExceeded
@@ -1345,6 +1346,23 @@ class allin(Exchange, ImplicitAPI):
             request['price'] = self.price_to_precision(symbol, price)
         return request
 
+    async def fetch_funding_rate(self, symbol: str, params={}):
+        """
+        fetch the current funding rate
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        request: dict = {
+            'market': market['id'],
+        }
+        response = None
+        if market['future'] or market['swap']:
+            response = await self.futurePublicGetOpenApiV2MarketState(request)
+        else:
+            raise NotSupported(self.id + ' fetchFundingRate() supports linear and inverse contracts only')
+        data = self.safe_dict(response, 'data', {})
+        return self.parse_funding_rate(data, market)
+
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.implode_hostname(self.urls['api'][api]) + path
         nonce = str(self.nonce())
@@ -1395,6 +1413,47 @@ class allin(Exchange, ImplicitAPI):
             }
             return await self.futurePrivatePostOpenApiV2SettingLeverage(request)
         return {}
+
+    def parse_funding_rate(self, contract, market: Market = None) -> FundingRate:
+        #     "data": {
+        #       "market": "ETHUSDT",
+        #       "amount": "4753.05",
+        #       "high": "1573.89",
+        #       "last": "1573.89",
+        #       "low": "1571.23",
+        #       "open": "1571.23",
+        #       "change": "0.0016929411989333",
+        #       "period": 86400,
+        #       "volume": "3.02",
+        #       "funding_time": 400,
+        #       "position_amount": "2.100",
+        #       "funding_rate_last": "0.00375",
+        #       "funding_rate_next": "0.00293873",
+        #       "funding_rate_predict": "-0.00088999",
+        #       "insurance": "10500.45426906585552617850",
+        #       "sign_price": "1581.98",
+        #       "index_price": "1578.12",
+        #       "sell_total": "112.974",
+        #       "buy_total": "170.914"
+        #     }
+        timestamp = self.milliseconds()
+        return {
+            'info': contract,
+            'symbol': market['symbol'],
+            'markPrice': self.safe_float(contract, 'sign_price'),
+            'indexPrice': self.safe_float(contract, 'index_price'),
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'fundingRate': self.safe_float(contract, 'funding_rate_last'),
+            'nextFundingRate': self.safe_float(contract, 'funding_rate_next'),
+            'previousFundingRate': self.safe_float(contract, 'funding_rate_predict'),
+            'nextFundingTimestamp': None,
+            'nextFundingDatetime': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
+            'fundingTimestamp': timestamp,
+            'interestRate': None,
+        }
 
     def parse_ticker(self, ticker: dict, market: Market = None) -> Ticker:
         # ticker = {'symbol': 'BTC-USDT',
