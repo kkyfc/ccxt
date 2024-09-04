@@ -43,15 +43,15 @@ export default class allin extends Exchange {
     parseTrade(trade: Dict, market?: Market): Trade;
     parseOrderType(type_: Str): "limit" | "market";
     toSpotOrderType(type_: string): "LIMIT" | "MARKET";
-    toFutureOrderType(type_: string): 1 | 2;
+    toFutureOrderType(type_: string): 2 | 1;
     parseOrderSide(side: Int): "buy" | "sell";
-    toOrderSide(side: string): 1 | 2;
+    toOrderSide(side: string): 2 | 1;
     parseSpotOrderStatus(status: Int): string;
     parseFutureOrderStatus(status: Int): string;
     parseOrder(order: Dict, market?: Market): Order;
     parsePosition(position: Dict, market?: Market): Position;
     parsePositionSide(sideNum: Int): "short" | "long";
-    toLeverageMode(marginMode: string): 1 | 2;
+    toLeverageMode(marginMode: string): 2 | 1;
     parseLeverageMode(modeNum: Int): "isolated" | "cross";
     parseLeverage(leverage: any, market: any): Leverage;
     handleErrors(statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any): any;

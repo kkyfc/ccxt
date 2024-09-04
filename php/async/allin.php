@@ -1642,8 +1642,8 @@ class allin extends Exchange {
             $originBalance = $originBalances[$i];
             $symbol = $this->safe_string($originBalance, 'symbol');
             $used = $this->safe_string($originBalance, 'freeze');
-            $total = $this->safe_string($originBalance, 'amount');
-            $free = Precise::string_sub($total, $used);
+            $free = $this->safe_string($originBalance, 'amount');
+            $total = Precise::string_add($free, $used);
             $balances[$symbol] = array(
                 'free' => $free,
                 'used' => $used,

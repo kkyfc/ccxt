@@ -1539,8 +1539,8 @@ class allin(Exchange, ImplicitAPI):
             originBalance = originBalances[i]
             symbol = self.safe_string(originBalance, 'symbol')
             used = self.safe_string(originBalance, 'freeze')
-            total = self.safe_string(originBalance, 'amount')
-            free = Precise.string_sub(total, used)
+            free = self.safe_string(originBalance, 'amount')
+            total = Precise.string_add(free, used)
             balances[symbol] = {
                 'free': free,
                 'used': used,

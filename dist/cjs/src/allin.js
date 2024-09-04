@@ -1599,8 +1599,8 @@ class allin extends allin$1 {
             const originBalance = originBalances[i];
             const symbol = this.safeString(originBalance, 'symbol');
             const used = this.safeString(originBalance, 'freeze');
-            const total = this.safeString(originBalance, 'amount');
-            const free = Precise["default"].stringSub(total, used);
+            const free = this.safeString(originBalance, 'amount');
+            const total = Precise["default"].stringAdd(free, used);
             balances[symbol] = {
                 'free': free,
                 'used': used,
