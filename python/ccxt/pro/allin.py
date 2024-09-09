@@ -345,7 +345,7 @@ class allin(ccxt.async_support.allin):
         #             {'price': '60000.0', 'quantity': '1.100000'},
         #             {'price': '8850.2', 'quantity': '0.200000'}],
         #              'symbol': 'BTC-USDT',
-        #              'timestamp': 1721550307627,
+        #              'timestamp': 1721550307.627,
         #              'topic': 'depth:step1:BTC-USDT',
         #              'tpp': 7},
         #          'merge': 'step1'},
@@ -383,7 +383,7 @@ class allin(ccxt.async_support.allin):
             # spot
             abData = self.safe_dict(result, 'data')
             marketId = self.safe_string(abData, 'symbol')
-            timestamp = self.safe_integer(abData, 'timestamp')
+            timestamp = self.safe_timestamp(abData, 'timestamp')
         else:
             # future
             abData = result

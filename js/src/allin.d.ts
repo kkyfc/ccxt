@@ -52,7 +52,7 @@ export default class allin extends Exchange {
     parsePosition(position: Dict, market?: Market): Position;
     parsePositionSide(sideNum: Int): "short" | "long";
     toLeverageMode(marginMode: string): 2 | 1;
-    parseLeverageMode(modeNum: Int): "isolated" | "cross";
+    parseLeverageMode(modeNum: Int): "cross" | "isolated";
     parseLeverage(leverage: any, market: any): Leverage;
     handleErrors(statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any): any;
     throwExactlyMatchedException(exact: any, string: any, message: any): void;

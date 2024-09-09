@@ -379,7 +379,7 @@ class allin extends \ccxt\async\allin {
         //             array( 'price' => '60000.0', 'quantity' => '1.100000' ),
         //             array( 'price' => '8850.2', 'quantity' => '0.200000' ) ),
         //              'symbol' => 'BTC-USDT',
-        //              'timestamp' => 1721550307627,
+        //              'timestamp' => 1721550307.627,
         //              'topic' => 'depth:step1:BTC-USDT',
         //              'tpp' => 7 ),
         //          'merge' => 'step1' ),
@@ -417,7 +417,7 @@ class allin extends \ccxt\async\allin {
             // spot
             $abData = $this->safe_dict($result, 'data');
             $marketId = $this->safe_string($abData, 'symbol');
-            $timestamp = $this->safe_integer($abData, 'timestamp');
+            $timestamp = $this->safe_timestamp($abData, 'timestamp');
         } else {
             // future
             $abData = $result;

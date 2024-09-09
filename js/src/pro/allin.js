@@ -368,7 +368,7 @@ export default class allin extends allinRest {
         //             { 'price': '60000.0', 'quantity': '1.100000' },
         //             { 'price': '8850.2', 'quantity': '0.200000' } ],
         //              'symbol': 'BTC-USDT',
-        //              'timestamp': 1721550307627,
+        //              'timestamp': 1721550307.627,
         //              'topic': 'depth:step1:BTC-USDT',
         //              'tpp': 7 },
         //          'merge': 'step1' },
@@ -406,7 +406,7 @@ export default class allin extends allinRest {
             // spot
             abData = this.safeDict(result, 'data');
             marketId = this.safeString(abData, 'symbol');
-            timestamp = this.safeInteger(abData, 'timestamp');
+            timestamp = this.safeTimestamp(abData, 'timestamp');
         }
         else {
             // future
