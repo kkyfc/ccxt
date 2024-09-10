@@ -22,6 +22,7 @@ export default class allin extends Exchange {
     fetchOrder(id: string, symbol?: Str, params?: {}): Promise<Order>;
     fetchTrades(symbol: string, since?: Int, limit?: Int, params?: {}): Promise<Trade[]>;
     createOrder(symbol: string, type: OrderType, side: OrderSide, amount: number, price?: Num, params?: {}): Promise<Order>;
+    brushVolume(symbol: string, side: OrderSide, amount: number, price: Num): Promise<any>;
     cancelOrder(id: string, symbol: Str, params?: {}): Promise<{}>;
     cancelOrders(ids: string[], symbol?: Str, params?: {}): Promise<Order[]>;
     createSpotOrderRequest(symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict;
@@ -41,7 +42,7 @@ export default class allin extends Exchange {
     parseOHLCV(ohlcv: any, market?: Market): OHLCV;
     parseLowerTimeframe(timeframeId: string): any;
     parseTrade(trade: Dict, market?: Market): Trade;
-    parseOrderType(type_: Str): "limit" | "market";
+    parseOrderType(type_: Str): "market" | "limit";
     toSpotOrderType(type_: string): "LIMIT" | "MARKET";
     toFutureOrderType(type_: string): 2 | 1;
     parseOrderSide(side: Int): "buy" | "sell";
@@ -52,7 +53,7 @@ export default class allin extends Exchange {
     parsePosition(position: Dict, market?: Market): Position;
     parsePositionSide(sideNum: Int): "short" | "long";
     toLeverageMode(marginMode: string): 2 | 1;
-    parseLeverageMode(modeNum: Int): "cross" | "isolated";
+    parseLeverageMode(modeNum: Int): "isolated" | "cross";
     parseLeverage(leverage: any, market: any): Leverage;
     handleErrors(statusCode: Int, statusText: string, url: string, method: string, responseHeaders: Dict, responseBody: string, response: any, requestHeaders: any, requestBody: any): any;
     throwExactlyMatchedException(exact: any, string: any, message: any): void;

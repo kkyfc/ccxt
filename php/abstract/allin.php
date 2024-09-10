@@ -64,6 +64,9 @@ abstract class allin extends \ccxt\Exchange {
     public function spotprivate_post_open_v1_orders_batcancel($params = array()) {
         return $this->request('/open/v1/orders/batcancel', 'spotPrivate', 'POST', $params, null, null, array("cost" => 0));
     }
+    public function spotprivate_post_open_v1_tickers_brush($params = array()) {
+        return $this->request('/open/v1/tickers/brush', 'spotPrivate', 'POST', $params, null, null, array("cost" => 0));
+    }
     public function futurepublic_get_open_api_v2_market_kline($params = array()) {
         return $this->request('/open/api/v2/market/kline', 'futurePublic', 'GET', $params, null, null, array("cost" => 0));
     }
@@ -154,6 +157,9 @@ abstract class allin extends \ccxt\Exchange {
     public function futureprivate_post_open_api_v2_position_close_stop($params = array()) {
         return $this->request('/open/api/v2/position/close/stop', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
     }
+    public function futureprivate_post_open_api_v2_order_report($params = array()) {
+        return $this->request('/open/api/v2/order/report', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
+    }
     public function spotPublicGetOpenV1TickersMarket($params = array()) {
         return $this->request('/open/v1/tickers/market', 'spotPublic', 'GET', $params, null, null, array("cost" => 0));
     }
@@ -210,6 +216,9 @@ abstract class allin extends \ccxt\Exchange {
     }
     public function spotPrivatePostOpenV1OrdersBatcancel($params = array()) {
         return $this->request('/open/v1/orders/batcancel', 'spotPrivate', 'POST', $params, null, null, array("cost" => 0));
+    }
+    public function spotPrivatePostOpenV1TickersBrush($params = array()) {
+        return $this->request('/open/v1/tickers/brush', 'spotPrivate', 'POST', $params, null, null, array("cost" => 0));
     }
     public function futurePublicGetOpenApiV2MarketKline($params = array()) {
         return $this->request('/open/api/v2/market/kline', 'futurePublic', 'GET', $params, null, null, array("cost" => 0));
@@ -300,5 +309,8 @@ abstract class allin extends \ccxt\Exchange {
     }
     public function futurePrivatePostOpenApiV2PositionCloseStop($params = array()) {
         return $this->request('/open/api/v2/position/close/stop', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
+    }
+    public function futurePrivatePostOpenApiV2OrderReport($params = array()) {
+        return $this->request('/open/api/v2/order/report', 'futurePrivate', 'POST', $params, null, null, array("cost" => 0));
     }
 }

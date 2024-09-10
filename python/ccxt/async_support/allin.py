@@ -53,6 +53,7 @@ class allin(Exchange, ImplicitAPI):
                 'future': True,
                 'option': False,
                 'borrowCrossMargin': True,
+                'brushVolume': True,    # 刷单接口
                 'cancelAllOrders': True,
                 'cancelAllOrdersAfter': True,
                 'cancelOrder': True,
@@ -207,6 +208,7 @@ class allin(Exchange, ImplicitAPI):
                         '/open/v1/orders/place': 0,
                         '/open/v1/orders/cancel': 0,
                         '/open/v1/orders/batcancel': 0,
+                        '/open/v1/tickers/brush': 0,  # 刷量
                     },
                 },
                 'futurePublic': {
@@ -249,6 +251,7 @@ class allin(Exchange, ImplicitAPI):
                         '/open/api/v2/position/close/limit': 0,
                         '/open/api/v2/position/close/market': 0,
                         '/open/api/v2/position/close/stop': 0,
+                        '/open/api/v2/order/report': 0,  # 刷量
                     },
                 },
             },
@@ -1197,6 +1200,32 @@ class allin(Exchange, ImplicitAPI):
                 response = await self.futurePrivatePostOpenApiV2OrderMarket(request)
             orderData = self.safe_dict(response, 'data')
             return self.parse_order(orderData, market)
+
+    async def brush_volume(self, symbol: str, side: OrderSide, amount: float, price: Num):
+        """
+        刷量
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        response = None
+        allinSide = self.to_order_side(side)
+        if market['spot']:
+            request = {
+                'symbol': market['id'],
+                'side': allinSide,
+                'price': self.price_to_precision(symbol, price),
+                'quantity': self.amount_to_precision(symbol, amount),
+            }
+            response = await self.spotPrivatePostOpenV1TickersBrush(request)
+        else:
+            request = {
+                'market': market['id'],
+                'side': allinSide,
+                'price': self.price_to_precision(symbol, price),
+                'quantity': self.amount_to_precision(symbol, amount),
+            }
+            response = await self.futurePrivatePostOpenApiV2OrderReport(request)
+        return response
 
     async def cancel_order(self, id: str, symbol: Str, params={}) -> {}:
         """

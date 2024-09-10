@@ -34,6 +34,7 @@ class allin extends Exchange {
                 'future' => true,
                 'option' => false,
                 'borrowCrossMargin' => true,
+                'brushVolume' => true,    // 刷单接口
                 'cancelAllOrders' => true,
                 'cancelAllOrdersAfter' => true,
                 'cancelOrder' => true,
@@ -188,6 +189,7 @@ class allin extends Exchange {
                         '/open/v1/orders/place' => 0,
                         '/open/v1/orders/cancel' => 0,
                         '/open/v1/orders/batcancel' => 0,
+                        '/open/v1/tickers/brush' => 0,  // 刷量
                     ),
                 ),
                 'futurePublic' => array(
@@ -230,6 +232,7 @@ class allin extends Exchange {
                         '/open/api/v2/position/close/limit' => 0,
                         '/open/api/v2/position/close/market' => 0,
                         '/open/api/v2/position/close/stop' => 0,
+                        '/open/api/v2/order/report' => 0,  // 刷量
                     ),
                 ),
             ),
@@ -1233,6 +1236,34 @@ class allin extends Exchange {
             $orderData = $this->safe_dict($response, 'data');
             return $this->parse_order($orderData, $market);
         }
+    }
+
+    public function brush_volume(string $symbol, string $side, float $amount, ?float $price) {
+        /**
+         * 刷量
+         */
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $response = null;
+        $allinSide = $this->to_order_side($side);
+        if ($market['spot']) {
+            $request = array(
+                'symbol' => $market['id'],
+                'side' => $allinSide,
+                'price' => $this->price_to_precision($symbol, $price),
+                'quantity' => $this->amount_to_precision($symbol, $amount),
+            );
+            $response = $this->spotPrivatePostOpenV1TickersBrush ($request);
+        } else {
+            $request = array(
+                'market' => $market['id'],
+                'side' => $allinSide,
+                'price' => $this->price_to_precision($symbol, $price),
+                'quantity' => $this->amount_to_precision($symbol, $amount),
+            );
+            $response = $this->futurePrivatePostOpenApiV2OrderReport ($request);
+        }
+        return $response;
     }
 
     public function cancel_order(string $id, ?string $symbol, $params = array ()): {} {

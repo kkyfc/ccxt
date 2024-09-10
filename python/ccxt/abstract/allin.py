@@ -21,6 +21,7 @@ class ImplicitAPI:
     spotprivate_post_open_v1_orders_place = spotPrivatePostOpenV1OrdersPlace = Entry('/open/v1/orders/place', 'spotPrivate', 'POST', {'cost': 0})
     spotprivate_post_open_v1_orders_cancel = spotPrivatePostOpenV1OrdersCancel = Entry('/open/v1/orders/cancel', 'spotPrivate', 'POST', {'cost': 0})
     spotprivate_post_open_v1_orders_batcancel = spotPrivatePostOpenV1OrdersBatcancel = Entry('/open/v1/orders/batcancel', 'spotPrivate', 'POST', {'cost': 0})
+    spotprivate_post_open_v1_tickers_brush = spotPrivatePostOpenV1TickersBrush = Entry('/open/v1/tickers/brush', 'spotPrivate', 'POST', {'cost': 0})
     futurepublic_get_open_api_v2_market_kline = futurePublicGetOpenApiV2MarketKline = Entry('/open/api/v2/market/kline', 'futurePublic', 'GET', {'cost': 0})
     futurepublic_get_open_api_v2_market_list = futurePublicGetOpenApiV2MarketList = Entry('/open/api/v2/market/list', 'futurePublic', 'GET', {'cost': 0})
     futurepublic_get_open_api_v2_market_deals = futurePublicGetOpenApiV2MarketDeals = Entry('/open/api/v2/market/deals', 'futurePublic', 'GET', {'cost': 0})
@@ -51,3 +52,4 @@ class ImplicitAPI:
     futureprivate_post_open_api_v2_position_close_limit = futurePrivatePostOpenApiV2PositionCloseLimit = Entry('/open/api/v2/position/close/limit', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_position_close_market = futurePrivatePostOpenApiV2PositionCloseMarket = Entry('/open/api/v2/position/close/market', 'futurePrivate', 'POST', {'cost': 0})
     futureprivate_post_open_api_v2_position_close_stop = futurePrivatePostOpenApiV2PositionCloseStop = Entry('/open/api/v2/position/close/stop', 'futurePrivate', 'POST', {'cost': 0})
+    futureprivate_post_open_api_v2_order_report = futurePrivatePostOpenApiV2OrderReport = Entry('/open/api/v2/order/report', 'futurePrivate', 'POST', {'cost': 0})

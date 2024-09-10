@@ -106,6 +106,11 @@ public partial class allin : Exchange
         return await this.callAsync ("spotPrivatePostOpenV1OrdersBatcancel",parameters);
     }
 
+    public async Task<object> spotPrivatePostOpenV1TickersBrush (object parameters = null)
+    {
+        return await this.callAsync ("spotPrivatePostOpenV1TickersBrush",parameters);
+    }
+
     public async Task<object> futurePublicGetOpenApiV2MarketKline (object parameters = null)
     {
         return await this.callAsync ("futurePublicGetOpenApiV2MarketKline",parameters);
@@ -254,6 +259,11 @@ public partial class allin : Exchange
     public async Task<object> futurePrivatePostOpenApiV2PositionCloseStop (object parameters = null)
     {
         return await this.callAsync ("futurePrivatePostOpenApiV2PositionCloseStop",parameters);
+    }
+
+    public async Task<object> futurePrivatePostOpenApiV2OrderReport (object parameters = null)
+    {
+        return await this.callAsync ("futurePrivatePostOpenApiV2OrderReport",parameters);
     }
 
 }

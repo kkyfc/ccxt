@@ -42,6 +42,7 @@ export default class allin extends Exchange {
                 'future': true,
                 'option': false,
                 'borrowCrossMargin': true,
+                'brushVolume': true,    // 刷单接口
                 'cancelAllOrders': true,
                 'cancelAllOrdersAfter': true,
                 'cancelOrder': true,
@@ -196,6 +197,7 @@ export default class allin extends Exchange {
                         '/open/v1/orders/place': 0,
                         '/open/v1/orders/cancel': 0,
                         '/open/v1/orders/batcancel': 0,
+                        '/open/v1/tickers/brush': 0,  // 刷量
                     },
                 },
                 'futurePublic': {
@@ -238,6 +240,7 @@ export default class allin extends Exchange {
                         '/open/api/v2/position/close/limit': 0,
                         '/open/api/v2/position/close/market': 0,
                         '/open/api/v2/position/close/stop': 0,
+                        '/open/api/v2/order/report': 0,  // 刷量
                     },
                 },
             },
@@ -1261,6 +1264,36 @@ export default class allin extends Exchange {
             const orderData = this.safeDict (response, 'data');
             return this.parseOrder (orderData, market);
         }
+    }
+
+    async brushVolume (symbol: string, side: OrderSide, amount: number, price: Num) {
+        /**
+         * @method
+         * @name allin#brushVolume
+         * @description 刷量
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        let response = undefined;
+        const allinSide = this.toOrderSide (side);
+        if (market['spot']) {
+            const request = {
+                'symbol': market['id'],
+                'side': allinSide,
+                'price': this.priceToPrecision (symbol, price),
+                'quantity': this.amountToPrecision (symbol, amount),
+            };
+            response = await this.spotPrivatePostOpenV1TickersBrush (request);
+        } else {
+            const request = {
+                'market': market['id'],
+                'side': allinSide,
+                'price': this.priceToPrecision (symbol, price),
+                'quantity': this.amountToPrecision (symbol, amount),
+            };
+            response = await this.futurePrivatePostOpenApiV2OrderReport (request);
+        }
+        return response;
     }
 
     async cancelOrder (id: string, symbol: Str, params = {}): Promise<{}> {
