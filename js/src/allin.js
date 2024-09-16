@@ -475,8 +475,8 @@ export default class allin extends Exchange {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': 1.0 / base_precision,
-                'price': 1.0 / quote_precision,
+                'amount': Math.pow(10, -base_precision),
+                'price': Math.pow(10, -quote_precision),
             },
             'limits': {
                 'leverage': {
@@ -584,8 +584,8 @@ export default class allin extends Exchange {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': 1.0 / base_precision,
-                'price': 1.0 / quote_precision,
+                'amount': Math.pow(10, -base_precision),
+                'price': Math.pow(10, -quote_precision),
             },
             'limits': {
                 'leverage': {

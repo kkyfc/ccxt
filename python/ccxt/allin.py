@@ -475,8 +475,8 @@ class allin(Exchange, ImplicitAPI):
             'taker': 0.0002,
             'created': None,
             'precision': {
-                'amount': 1.0 / base_precision,
-                'price': 1.0 / quote_precision,
+                'amount': math.pow(10, -base_precision),
+                'price': math.pow(10, -quote_precision),
             },
             'limits': {
                 'leverage': {
@@ -580,8 +580,8 @@ class allin(Exchange, ImplicitAPI):
             'taker': 0.0002,
             'created': None,
             'precision': {
-                'amount': 1.0 / base_precision,
-                'price': 1.0 / quote_precision,
+                'amount': math.pow(10, -base_precision),
+                'price': math.pow(10, -quote_precision),
             },
             'limits': {
                 'leverage': {

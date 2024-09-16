@@ -476,8 +476,8 @@ class allin extends Exchange {
             'taker' => 0.0002,
             'created' => null,
             'precision' => array(
-                'amount' => 1.0 / $base_precision,
-                'price' => 1.0 / $quote_precision,
+                'amount' => pow(10, -$base_precision),
+                'price' => pow(10, -$quote_precision),
             ),
             'limits' => array(
                 'leverage' => array(
@@ -585,8 +585,8 @@ class allin extends Exchange {
             'taker' => 0.0002,
             'created' => null,
             'precision' => array(
-                'amount' => 1.0 / $base_precision,
-                'price' => 1.0 / $quote_precision,
+                'amount' => pow(10, -$base_precision),
+                'price' => pow(10, -$quote_precision),
             ),
             'limits' => array(
                 'leverage' => array(
