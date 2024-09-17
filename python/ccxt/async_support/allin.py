@@ -24,6 +24,7 @@ from ccxt.base.errors import NotSupported
 from ccxt.base.errors import OperationFailed
 from ccxt.base.errors import NetworkError
 from ccxt.base.errors import RateLimitExceeded
+from ccxt.base.decimal_to_precision import TICK_SIZE
 from ccxt.base.precise import Precise
 
 
@@ -40,6 +41,7 @@ class allin(Exchange, ImplicitAPI):
             'hostname': 'allin.pro',
             'pro': True,
             'certified': False,
+            'precisionMode': TICK_SIZE,
             'options': {
                 'sandboxMode': False,
                 'fetchMarkets': ['spot', 'future'],

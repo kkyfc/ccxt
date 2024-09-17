@@ -21,6 +21,7 @@ class allin extends Exchange {
             'hostname' => 'allin.pro',
             'pro' => true,
             'certified' => false,
+            'precisionMode' => TICK_SIZE,
             'options' => array(
                 'sandboxMode' => false,
                 'fetchMarkets' => array( 'spot', 'future' ),

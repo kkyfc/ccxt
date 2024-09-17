@@ -7,6 +7,7 @@ import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError,
     OperationFailed, BaseError,
     InsufficientFunds, OperationRejected,
     OrderNotFillable, InvalidOrder, NotSupported } from './base/errors.js';
+import { TICK_SIZE } from './base/functions/number.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage, FundingRate } from './base/types.js';
@@ -29,6 +30,7 @@ export default class allin extends Exchange {
             'hostname': 'allin.pro',
             'pro': true,
             'certified': false,
+            'precisionMode': TICK_SIZE,
             'options': {
                 'sandboxMode': false,
                 'fetchMarkets': [ 'spot', 'future' ],

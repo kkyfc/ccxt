@@ -2,6 +2,7 @@
 
 var allin$1 = require('./abstract/allin.js');
 var errors = require('./base/errors.js');
+var number = require('./base/functions/number.js');
 var Precise = require('./base/Precise.js');
 var sha256 = require('./static_dependencies/noble-hashes/sha256.js');
 
@@ -23,6 +24,7 @@ class allin extends allin$1 {
             'hostname': 'allin.pro',
             'pro': true,
             'certified': false,
+            'precisionMode': number.TICK_SIZE,
             'options': {
                 'sandboxMode': false,
                 'fetchMarkets': ['spot', 'future'],
