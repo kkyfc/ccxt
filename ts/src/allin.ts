@@ -10,7 +10,6 @@ import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError,
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
 import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage, FundingRate } from './base/types.js';
-import { pow } from './static_dependencies/noble-curves/abstract/modular.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -477,7 +476,7 @@ export default class allin extends Exchange {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': this.pow (10, -base_precision),
+                'amount': Math.pow (10, -base_precision),
                 'price': Math.pow (10, -quote_precision),
             },
             'limits': {
