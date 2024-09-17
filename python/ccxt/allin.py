@@ -6,7 +6,6 @@
 from ccxt.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import hashlib
-import math
 from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade, Num
 from typing import List
 from ccxt.base.errors import BaseError
@@ -446,8 +445,8 @@ class allin(Exchange, ImplicitAPI):
         leverages = self.safe_list(market, 'leverages')
         maxLeverage = self.safe_string(leverages, len(leverages) - 1)
         minLeverage = self.safe_string(leverages, 0)
-        base_precision = self.safe_integer(market, 'amount_prec')
-        quote_precision = self.safe_integer(market, 'money_prec')
+        base_precision = self.safe_string(market, 'amount_prec')
+        quote_precision = self.safe_string(market, 'money_prec')
         return self.extend(fees, {
             'id': origin_symbol,
             'symbol': symbol,
@@ -476,8 +475,8 @@ class allin(Exchange, ImplicitAPI):
             'taker': 0.0002,
             'created': None,
             'precision': {
-                'amount': math.pow(10, -base_precision),
-                'price': math.pow(10, -quote_precision),
+                'amount': self.parse_number(self.parse_precision(base_precision)),
+                'price': self.parse_number(self.parse_precision(quote_precision)),
             },
             'limits': {
                 'leverage': {
@@ -530,8 +529,8 @@ class allin(Exchange, ImplicitAPI):
         quote = self.safe_currency_code(quoteId)
         settleId = self.safe_string(market, 'settleCcy')
         settle = self.safe_currency_code(settleId)
-        base_precision = self.safe_integer(market, 'base_precision')
-        quote_precision = self.safe_integer(market, 'quote_precision')
+        base_precision = self.safe_string(market, 'base_precision')
+        quote_precision = self.safe_string(market, 'quote_precision')
         fees = self.safe_dict_2(self.fees, type_, 'trading', {})
         maxLeverage = self.safe_string(market, 'lever', '1')
         maxLeverage = Precise.string_max(maxLeverage, '1')
@@ -581,8 +580,8 @@ class allin(Exchange, ImplicitAPI):
             'taker': 0.0002,
             'created': None,
             'precision': {
-                'amount': math.pow(10, -base_precision),
-                'price': math.pow(10, -quote_precision),
+                'amount': self.parse_number(self.parse_precision(base_precision)),
+                'price': self.parse_number(self.parse_precision(quote_precision)),
             },
             'limits': {
                 'leverage': {

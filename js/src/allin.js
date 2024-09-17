@@ -445,8 +445,8 @@ export default class allin extends Exchange {
         const leverages = this.safeList(market, 'leverages');
         const maxLeverage = this.safeString(leverages, leverages.length - 1);
         const minLeverage = this.safeString(leverages, 0);
-        const base_precision = this.safeInteger(market, 'amount_prec');
-        const quote_precision = this.safeInteger(market, 'money_prec');
+        const base_precision = this.safeString(market, 'amount_prec');
+        const quote_precision = this.safeString(market, 'money_prec');
         return this.extend(fees, {
             'id': origin_symbol,
             'symbol': symbol,
@@ -475,8 +475,8 @@ export default class allin extends Exchange {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': Math.pow(10, -base_precision),
-                'price': Math.pow(10, -quote_precision),
+                'amount': this.parseNumber(this.parsePrecision(base_precision)),
+                'price': this.parseNumber(this.parsePrecision(quote_precision)),
             },
             'limits': {
                 'leverage': {
@@ -530,8 +530,8 @@ export default class allin extends Exchange {
         const quote = this.safeCurrencyCode(quoteId);
         const settleId = this.safeString(market, 'settleCcy');
         const settle = this.safeCurrencyCode(settleId);
-        const base_precision = this.safeInteger(market, 'base_precision');
-        const quote_precision = this.safeInteger(market, 'quote_precision');
+        const base_precision = this.safeString(market, 'base_precision');
+        const quote_precision = this.safeString(market, 'quote_precision');
         const fees = this.safeDict2(this.fees, type_, 'trading', {});
         let maxLeverage = this.safeString(market, 'lever', '1');
         maxLeverage = Precise.stringMax(maxLeverage, '1');
@@ -584,8 +584,8 @@ export default class allin extends Exchange {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': Math.pow(10, -base_precision),
-                'price': Math.pow(10, -quote_precision),
+                'amount': this.parseNumber(this.parsePrecision(base_precision)),
+                'price': this.parseNumber(this.parsePrecision(quote_precision)),
             },
             'limits': {
                 'leverage': {

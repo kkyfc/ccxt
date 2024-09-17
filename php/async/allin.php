@@ -446,8 +446,8 @@ class allin extends Exchange {
         $leverages = $this->safe_list($market, 'leverages');
         $maxLeverage = $this->safe_string($leverages, strlen($leverages) - 1);
         $minLeverage = $this->safe_string($leverages, 0);
-        $base_precision = $this->safe_integer($market, 'amount_prec');
-        $quote_precision = $this->safe_integer($market, 'money_prec');
+        $base_precision = $this->safe_string($market, 'amount_prec');
+        $quote_precision = $this->safe_string($market, 'money_prec');
         return $this->extend($fees, array(
             'id' => $origin_symbol,
             'symbol' => $symbol,
@@ -476,8 +476,8 @@ class allin extends Exchange {
             'taker' => 0.0002,
             'created' => null,
             'precision' => array(
-                'amount' => pow(10, -$base_precision),
-                'price' => pow(10, -$quote_precision),
+                'amount' => $this->parse_number($this->parse_precision($base_precision)),
+                'price' => $this->parse_number($this->parse_precision($quote_precision)),
             ),
             'limits' => array(
                 'leverage' => array(
@@ -532,8 +532,8 @@ class allin extends Exchange {
         $quote = $this->safe_currency_code($quoteId);
         $settleId = $this->safe_string($market, 'settleCcy');
         $settle = $this->safe_currency_code($settleId);
-        $base_precision = $this->safe_integer($market, 'base_precision');
-        $quote_precision = $this->safe_integer($market, 'quote_precision');
+        $base_precision = $this->safe_string($market, 'base_precision');
+        $quote_precision = $this->safe_string($market, 'quote_precision');
         $fees = $this->safe_dict_2($this->fees, $type_, 'trading', array());
         $maxLeverage = $this->safe_string($market, 'lever', '1');
         $maxLeverage = Precise::string_max($maxLeverage, '1');
@@ -585,8 +585,8 @@ class allin extends Exchange {
             'taker' => 0.0002,
             'created' => null,
             'precision' => array(
-                'amount' => pow(10, -$base_precision),
-                'price' => pow(10, -$quote_precision),
+                'amount' => $this->parse_number($this->parse_precision($base_precision)),
+                'price' => $this->parse_number($this->parse_precision($quote_precision)),
             ),
             'limits' => array(
                 'leverage' => array(
