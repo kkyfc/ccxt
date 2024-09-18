@@ -2,6 +2,7 @@
 
 var allin$1 = require('./abstract/allin.js');
 var errors = require('./base/errors.js');
+var number = require('./base/functions/number.js');
 var Precise = require('./base/Precise.js');
 var sha256 = require('./static_dependencies/noble-hashes/sha256.js');
 
@@ -23,6 +24,7 @@ class allin extends allin$1 {
             'hostname': 'allin.pro',
             'pro': true,
             'certified': false,
+            'precisionMode': number.TICK_SIZE,
             'options': {
                 'sandboxMode': false,
                 'fetchMarkets': ['spot', 'future'],
@@ -36,6 +38,7 @@ class allin extends allin$1 {
                 'future': true,
                 'option': false,
                 'borrowCrossMargin': true,
+                'brushVolume': true,
                 'cancelAllOrders': true,
                 'cancelAllOrdersAfter': true,
                 'cancelOrder': true,
@@ -147,18 +150,18 @@ class allin extends allin$1 {
             },
             'urls': {
                 'test': {
-                    'spotPublic': 'https://api.allintest.pro',
-                    'spotPrivate': 'https://api.allintest.pro',
-                    'futurePublic': 'https://api.allintest.pro/futuresopen',
-                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
+                    'spotPublic': 'http://api.aie.test',
+                    'spotPrivate': 'http://api.aie.test',
+                    'futurePublic': 'http://futuresopen.aie.test',
+                    'futurePrivate': 'http://futuresopen.aie.test',
                 },
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc': ['https://allinexchange.github.io/spot-docs/v1/en/#introduction'],
                 'api': {
-                    'spotPublic': 'https://api.allinpro.com',
-                    'spotPrivate': 'https://api.allinpro.com',
-                    'futurePublic': 'https://api.allinpro.com/futuresopen',
-                    'futurePrivate': 'https://api.allinpro.com/futuresopen',
+                    'spotPublic': 'http://api.aie.prod',
+                    'spotPrivate': 'http://api.aie.prod',
+                    'futurePublic': 'http://futuresopen.aie.prod',
+                    'futurePrivate': 'http://futuresopen.aie.prod',
                 },
             },
             'api': {
@@ -190,6 +193,7 @@ class allin extends allin$1 {
                         '/open/v1/orders/place': 0,
                         '/open/v1/orders/cancel': 0,
                         '/open/v1/orders/batcancel': 0,
+                        '/open/v1/tickers/brush': 0, // 刷量
                     },
                 },
                 'futurePublic': {
@@ -223,6 +227,7 @@ class allin extends allin$1 {
                         '/open/api/v2/order/market': 0,
                         '/open/api/v2/order/cancel/all': 0,
                         '/open/api/v2/order/cancel': 0,
+                        '/open/api/v2/order/cancel/batch': 0,
                         '/open/api/v2/order/limit': 0,
                         '/open/api/v2/order/stop': 0,
                         '/open/api/v2/order/stop/cancel': 0,
@@ -231,6 +236,7 @@ class allin extends allin$1 {
                         '/open/api/v2/position/close/limit': 0,
                         '/open/api/v2/position/close/market': 0,
                         '/open/api/v2/position/close/stop': 0,
+                        '/open/api/v2/order/report': 0, // 刷量
                     },
                 },
             },
@@ -250,7 +256,7 @@ class allin extends allin$1 {
                     '1010316': errors.AuthenticationError,
                     '1010007': errors.RateLimitExceeded,
                     '1010325': errors.BadSymbol,
-                    '10500': errors.ExchangeError,
+                    '10500': errors.InsufficientFunds,
                     '1010367': errors.OperationFailed,
                     '1010006': errors.AuthenticationError,
                     '1010009': errors.BadRequest,
@@ -394,29 +400,21 @@ class allin extends allin$1 {
         }
     }
     parseFutureMarket(market) {
-        // const market = { 'code': 0,
-        //     'data': [ { 'amount_min': '0.0001',
-        //         'amount_prec': 4,
-        //         'available': True,
-        //         'fee_prec': 8,
-        //         'leverages': [ '5', '8', '10', '15', '20', '30', '50', '100' ],
-        //         'limits': [ [ '500.0001', '5', '0.1' ],
-        //             [ '200.0001', '10', '0.05' ],
-        //             [ '100.0001', '15', '0.03' ],
-        //             [ '50.0001', '20', '0.02' ],
-        //             [ '20.0001', '50', '0.01' ],
-        //             [ '10.0001', '100', '0.005' ] ],
-        //         'merges': [ '100', '10', '1', '0.1', '0.01' ],
-        //         'money': 'USDT',
-        //         'money_prec': 2,
-        //         'name': 'BTCUSDT',
-        //         'sort': 1,
-        //         'stock': 'BTC',
-        //         'stock_prec': 8,
-        //         'tick_size': '0.01',
-        //         'type': 1 } ],
-        //     'msg': 'success',
-        //     'time': 1722510060 };
+        // const market = { 'type': 1,
+        //     'leverages': [ '3', '5', '8', '10', '15', '20', '30', '50', '100' ],
+        //     'merges': [ '100', '10', '1', '0.1', '0.01' ],
+        //     'name': 'BTCUSDT',
+        //     'stock': 'BTC',
+        //     'money': 'USDT',
+        //     'fee_prec': 8,
+        //     'tick_size': '0.01',
+        //     'stock_prec': 8,
+        //     'money_prec': 2,
+        //     'amount_prec': 4,
+        //     'amount_min': '0.0001',
+        //     'available': true,
+        //     'limits': [ [ '2500.0001', '3', '0.036' ], [ '2000.0001', '5', '0.032' ], [ '1500.0001', '8', '0.028' ], [ '1000.0001', '10', '0.024' ], [ '500.0001', '15', '0.02' ], [ '250.0001', '20', '0.016' ], [ '100.0001', '30', '0.012' ], [ '50.0001', '50', '0.008' ], [ '20.0001', '100', '0.004' ] ],
+        //     'sort': 100 };
         const origin_symbol = this.safeString(market, 'name');
         const active = this.safeBool(market, 'available');
         const baseId = this.safeString(market, 'stock');
@@ -445,8 +443,8 @@ class allin extends allin$1 {
         const leverages = this.safeList(market, 'leverages');
         const maxLeverage = this.safeString(leverages, leverages.length - 1);
         const minLeverage = this.safeString(leverages, 0);
-        const base_precision = this.safeNumber(market, 'stock_prec');
-        const quote_precision = this.safeNumber(market, 'money_prec');
+        const base_precision = this.safeString(market, 'amount_prec');
+        const quote_precision = this.safeString(market, 'money_prec');
         return this.extend(fees, {
             'id': origin_symbol,
             'symbol': symbol,
@@ -475,8 +473,8 @@ class allin extends allin$1 {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': base_precision,
-                'price': quote_precision,
+                'amount': this.parseNumber(this.parsePrecision(base_precision)),
+                'price': this.parseNumber(this.parsePrecision(quote_precision)),
             },
             'limits': {
                 'leverage': {
@@ -528,8 +526,8 @@ class allin extends allin$1 {
         const quote = this.safeCurrencyCode(quoteId);
         const settleId = this.safeString(market, 'settleCcy');
         const settle = this.safeCurrencyCode(settleId);
-        const base_precision = this.safeInteger(market, 'base_precision');
-        const quote_precision = this.safeInteger(market, 'quote_precision');
+        const base_precision = this.safeString(market, 'base_precision');
+        const quote_precision = this.safeString(market, 'quote_precision');
         const fees = this.safeDict2(this.fees, type_, 'trading', {});
         let maxLeverage = this.safeString(market, 'lever', '1');
         maxLeverage = Precise["default"].stringMax(maxLeverage, '1');
@@ -566,8 +564,8 @@ class allin extends allin$1 {
             'taker': 0.0002,
             'created': undefined,
             'precision': {
-                'amount': base_precision,
-                'price': quote_precision,
+                'amount': this.parseNumber(this.parsePrecision(base_precision)),
+                'price': this.parseNumber(this.parsePrecision(quote_precision)),
             },
             'limits': {
                 'leverage': {
@@ -669,6 +667,28 @@ class allin extends allin$1 {
         //         { 'price': '73104.20', 'quantity': '0.040996' },
         //         { 'price': '78000.00', 'quantity': '0.003000' } ] },
         //     'time': 1721550050 };
+        // future {
+        //     "code": 0,
+        //     "msg": "success",
+        //     "data": {
+        //       "index_price": "1577.63",
+        //       "sign_price": "1581.5",
+        //       "time": 1697620709569,
+        //       "last": "1573.89",
+        //       "asks": [
+        //         [
+        //           "1621.22",
+        //           "30.613"
+        //         ]
+        //       ],
+        //       "bids": [
+        //         [
+        //           "1573.84",
+        //           "0.819"
+        //         ]
+        //       ]
+        //     }
+        //   }
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' fetchOrderBook() requires a symbol argument');
         }
@@ -691,7 +711,11 @@ class allin extends allin$1 {
             response = await this.futurePublicGetOpenApiV2MarketDepth(request);
             const result = this.safeDict(response, 'data', {});
             const timestamp = this.safeInteger(result, 'time');
-            return this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 0, 1);
+            const orderbook = this.parseOrderBook(result, symbol, timestamp, 'bids', 'asks', 0, 1);
+            orderbook['markPrice'] = this.safeFloat(result, 'sign_price');
+            orderbook['indexPrice'] = this.safeFloat(result, 'index_price');
+            orderbook['lastPrice'] = this.safeFloat(result, 'last');
+            return orderbook;
         }
     }
     async fetchBalance(params = {}) {
@@ -1141,34 +1165,62 @@ class allin extends allin$1 {
          * @param {float} [price] the price that the order is to be fullfilled, in units of the quote currency, ignored in market orders
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          */
-        // {
-        //     "code": 0,
-        //     "msg": "ok",
-        //     "data": {
-        //         "order_id": "xxx",
-        //         "trade_no": "xxx",
-        //     },
-        // }
+        // const spot = { 'code': 0,
+        //     'msg': 'ok',
+        //     'data': { 'create_at': 1724217619.237232,
+        //         'frm': 'USDT',
+        //         'left': '0.000000',
+        //         'match_amt': '5939.74200000',
+        //         'match_price': '59397.42',
+        //         'match_qty': '0.100000',
+        //         'order_id': '112321459',
+        //         'order_sub_type': 0,
+        //         'order_type': 'LIMIT',
+        //         'price': '60000.21',
+        //         'quantity': '0.100000',
+        //         'side': 2,
+        //         'status': 3,
+        //         'stop_price': '0',
+        //         'symbol': 'BTC-USDT',
+        //         'ticker': 'BTC-USDT',
+        //         'ticker_id': 7,
+        //         'timestamp': 1724217619.237232,
+        //         'to': 'BTC',
+        //         'trade_no': '40546382832340918031114',
+        //         'update_timestamp': 1724217619.237275 },
+        //     'time': 1724217619.237593 };
         // future
-        // {"code": 0, "msg": "success", "data": 5023856, "time": 1723130482}
+        // const future = { 'code': 0,
+        //     'msg': 'success',
+        //     'data': { 'order_id': '22710426',
+        //         'position_id': '0',
+        //         'market': 'BTCUSDT',
+        //         'type': '1',
+        //         'side': '1',
+        //         'left': '0.0099',
+        //         'amount': '0.0099',
+        //         'filled': '0',
+        //         'deal_fee': '0',
+        //         'price': '59181.464',
+        //         'avg_price': '',
+        //         'deal_stock': '0',
+        //         'position_type': '2',
+        //         'leverage': '5',
+        //         'update_time': '1724067149.721356',
+        //         'create_time': '1724067149.721356',
+        //         'status': '1',
+        //         'stop_loss_price': '',
+        //         'take_profit_price': '',
+        //         'client_oid': '40546335150450903175323' },
+        //     'time': 1723130482 };
         await this.loadMarkets();
         const market = this.market(symbol);
-        const symbolId = this.safeString(market, 'id');
         let response = undefined;
-        let allinOrderSide = undefined;
-        let allinOrderType = undefined;
-        let timestamp = undefined; // timestamp in s
-        let orderId = undefined;
-        let tradeNo = undefined;
         if (market['spot']) {
             const request = this.createSpotOrderRequest(symbol, type, side, amount, price, params, market);
             response = await this.spotPrivatePostOpenV1OrdersPlace(request);
             const orderData = this.safeDict(response, 'data');
-            timestamp = this.safeInteger(response, 'time'); // timestamp in s
-            orderId = this.safeString(orderData, 'order_id');
-            tradeNo = this.safeString(orderData, 'trade_no');
-            allinOrderSide = request['side'];
-            allinOrderType = request['order_type'];
+            return this.parseOrder(orderData, market);
         }
         else {
             const request = this.createFutureOrderRequest(symbol, type, side, amount, price, params, market);
@@ -1178,26 +1230,39 @@ class allin extends allin$1 {
             else {
                 response = await this.futurePrivatePostOpenApiV2OrderMarket(request);
             }
-            timestamp = this.safeInteger(response, 'time'); // timestamp in s
-            orderId = this.safeString(response, 'data');
-            tradeNo = undefined;
-            allinOrderSide = this.toOrderSide(side);
-            allinOrderType = this.toFutureOrderType(type);
+            const orderData = this.safeDict(response, 'data');
+            return this.parseOrder(orderData, market);
         }
-        return this.parseOrder({
-            'order_id': orderId,
-            'trade_no': tradeNo,
-            'symbol': symbolId,
-            'price': price,
-            'quantity': amount,
-            'match_amt': '0',
-            'match_qty': '0',
-            'match_price': '',
-            'side': allinOrderSide,
-            'order_type': allinOrderType,
-            'status': 'open',
-            'create_at': timestamp,
-        }, market);
+    }
+    async brushVolume(symbol, side, amount, price) {
+        /**
+         * @method
+         * @name allin#brushVolume
+         * @description 刷量
+         */
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        let response = undefined;
+        const allinSide = this.toOrderSide(side);
+        if (market['spot']) {
+            const request = {
+                'symbol': market['id'],
+                'side': allinSide,
+                'price': this.priceToPrecision(symbol, price),
+                'quantity': this.amountToPrecision(symbol, amount),
+            };
+            response = await this.spotPrivatePostOpenV1TickersBrush(request);
+        }
+        else {
+            const request = {
+                'market': market['id'],
+                'side': allinSide,
+                'price': this.priceToPrecision(symbol, price),
+                'quantity': this.amountToPrecision(symbol, amount),
+            };
+            response = await this.futurePrivatePostOpenApiV2OrderReport(request);
+        }
+        return response;
     }
     async cancelOrder(id, symbol, params = {}) {
         /**
@@ -1227,7 +1292,29 @@ class allin extends allin$1 {
         //         'trade_no': '40545292203741231233614' },
         //     'time': 1720775985 };
         // future
-        // {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
+        // const future = { 'code': 0,
+        //     'msg': 'success',
+        //     'data': { 'order_id': '22710426',
+        //         'position_id': '0',
+        //         'market': 'BTCUSDT',
+        //         'type': '1',
+        //         'side': '1',
+        //         'left': '0.0099',
+        //         'amount': '0.0099',
+        //         'filled': '0',
+        //         'deal_fee': '0',
+        //         'price': '59181.464',
+        //         'avg_price': '',
+        //         'deal_stock': '0',
+        //         'position_type': '2',
+        //         'leverage': '5',
+        //         'update_time': '1724067149.721356',
+        //         'create_time': '1724067149.721356',
+        //         'status': '1',
+        //         'stop_loss_price': '',
+        //         'take_profit_price': '',
+        //         'client_oid': '40546335150450903175323' },
+        //     'time': 1723130482 };
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
@@ -1250,13 +1337,60 @@ class allin extends allin$1 {
                 'order_id': id,
             };
             response = await this.futurePrivatePostOpenApiV2OrderCancel(request);
-            return {
-                'info': response,
-                'id': id,
-                'symbol': symbol,
-                'status': 'open',
-                'timestamp': this.safeTimestamp(response, 'time'),
+            const orderData = this.safeDict(response, 'data');
+            return this.parseOrder(orderData, market);
+        }
+    }
+    async cancelOrders(ids, symbol = undefined, params = {}) {
+        /**
+         * @method
+         * @name allin#cancelOrders
+         * @description cancel multiple orders
+         * @see https://allinexchange.github.io/spot-docs/v1/en/#cancel-all-or-part-of-the-orders-in-order
+         * @param {string[]} ids order ids
+         * @param {string} [symbol] unified market symbol
+         * @param {object} [params] extra parameters specific to the exchange API endpoint
+         */
+        // spot
+        // {
+        //     'code': 0,
+        //     'data': [
+        //         {
+        //             'symbol': 'BTC-USDT',
+        //             'order_id': '11574744030837944',
+        //             'trade_no': '499016576021202015341',
+        //             'price': '7900',
+        //             'quantity': '1',
+        //             'match_amt': '0',
+        //             'match_qty': '0',
+        //             'match_price': '',
+        //             'side': -1,
+        //             'order_type': 1,
+        //             'create_at': 1574744151836
+        //         },
+        //     ],
+        // }
+        // future {"code": 0, "msg": "success", "data": ["20979038", "20979039"], "time": 1723883453}
+        const currentType = this.options['defaultType'];
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        if (currentType === 'spot') {
+            const request = {
+                'symbol': market['id'],
+                'order_ids': ids.join(','),
             };
+            const response = await this.spotPrivatePostOpenV1OrdersBatcancel(request);
+            const orderDatas = this.safeDict(response, 'data');
+            return this.parseOrders(orderDatas, market);
+        }
+        else {
+            const request = {
+                'market': market['id'],
+                'order_ids': ids.join(','),
+            };
+            const response = await this.futurePrivatePostOpenApiV2OrderCancelBatch(request);
+            const orderDatas = this.safeDict(response, 'data');
+            return this.parseOrders(orderDatas, market);
         }
     }
     createSpotOrderRequest(symbol, type, side, amount, price, params, market) {
@@ -1266,10 +1400,10 @@ class allin extends allin$1 {
             'symbol': market['id'],
             'side': this.forceString(orderSide),
             'order_type': orderType,
-            'quantity': this.forceString(amount),
+            'quantity': this.amountToPrecision(symbol, amount),
         };
         if (price !== undefined && orderType === 'LIMIT') {
-            request['price'] = this.forceString(price);
+            request['price'] = this.priceToPrecision(symbol, price);
         }
         const requestParams = this.omit(params, [
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
@@ -1283,12 +1417,33 @@ class allin extends allin$1 {
         const request = {
             'market': market['id'],
             'side': orderSide,
-            'quantity': this.forceString(amount),
+            'quantity': this.amountToPrecision(symbol, amount),
         };
         if (price !== undefined && type === 'limit') {
-            request['price'] = this.forceString(price);
+            request['price'] = this.priceToPrecision(symbol, price);
         }
         return request;
+    }
+    async fetchFundingRate(symbol, params = {}) {
+        /**
+         * @method
+         * @name allin#fetchFundingRate
+         * @description fetch the current funding rate
+         */
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const request = {
+            'market': market['id'],
+        };
+        let response = undefined;
+        if (market['future'] || market['swap']) {
+            response = await this.futurePublicGetOpenApiV2MarketState(request);
+        }
+        else {
+            throw new errors.NotSupported(this.id + ' fetchFundingRate() supports linear and inverse contracts only');
+        }
+        const data = this.safeDict(response, 'data', {});
+        return this.parseFundingRate(data, market);
     }
     sign(path, api = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         let url = this.implodeHostname(this.urls['api'][api]) + path;
@@ -1351,6 +1506,47 @@ class allin extends allin$1 {
             return await this.futurePrivatePostOpenApiV2SettingLeverage(request);
         }
         return {};
+    }
+    parseFundingRate(contract, market = undefined) {
+        //     "data": {
+        //       "market": "ETHUSDT",
+        //       "amount": "4753.05",
+        //       "high": "1573.89",
+        //       "last": "1573.89",
+        //       "low": "1571.23",
+        //       "open": "1571.23",
+        //       "change": "0.0016929411989333",
+        //       "period": 86400,
+        //       "volume": "3.02",
+        //       "funding_time": 400,
+        //       "position_amount": "2.100",
+        //       "funding_rate_last": "0.00375",
+        //       "funding_rate_next": "0.00293873",
+        //       "funding_rate_predict": "-0.00088999",
+        //       "insurance": "10500.45426906585552617850",
+        //       "sign_price": "1581.98",
+        //       "index_price": "1578.12",
+        //       "sell_total": "112.974",
+        //       "buy_total": "170.914"
+        //     }
+        const timestamp = this.milliseconds();
+        return {
+            'info': contract,
+            'symbol': market['symbol'],
+            'markPrice': this.safeFloat(contract, 'sign_price'),
+            'indexPrice': this.safeFloat(contract, 'index_price'),
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'fundingRate': this.safeFloat(contract, 'funding_rate_last'),
+            'nextFundingRate': this.safeFloat(contract, 'funding_rate_next'),
+            'previousFundingRate': this.safeFloat(contract, 'funding_rate_predict'),
+            'nextFundingTimestamp': undefined,
+            'nextFundingDatetime': undefined,
+            'previousFundingTimestamp': undefined,
+            'previousFundingDatetime': undefined,
+            'fundingTimestamp': timestamp,
+            'interestRate': undefined,
+        };
     }
     parseTicker(ticker, market = undefined) {
         // const ticker = { 'symbol': 'BTC-USDT',
@@ -1438,8 +1634,8 @@ class allin extends allin$1 {
             const originBalance = originBalances[i];
             const symbol = this.safeString(originBalance, 'symbol');
             const used = this.safeString(originBalance, 'freeze');
-            const total = this.safeString(originBalance, 'amount');
-            const free = Precise["default"].stringSub(total, used);
+            const free = this.safeString(originBalance, 'amount');
+            const total = Precise["default"].stringAdd(free, used);
             balances[symbol] = {
                 'free': free,
                 'used': used,
@@ -1595,7 +1791,14 @@ class allin extends allin$1 {
             return 'market';
         }
         else {
-            throw new errors.ExchangeError('unknown orderType: ' + this.numberToString(type_));
+            let errorType = undefined;
+            if (type_) {
+                errorType = String(type_);
+            }
+            else {
+                errorType = 'null';
+            }
+            throw new errors.ExchangeError('unknown orderType: ' + errorType);
         }
     }
     toSpotOrderType(type_) {
@@ -1669,6 +1872,28 @@ class allin extends allin$1 {
         return this.safeString(statusDict, statusStr);
     }
     parseOrder(order, market) {
+        // // create spot order
+        //     'data': { 'create_at': 1724217619.237232,
+        //         'frm': 'USDT',
+        //         'left': '0.000000',
+        //         'match_amt': '5939.74200000',
+        //         'match_price': '59397.42',
+        //         'match_qty': '0.100000',
+        //         'order_id': '112321459',
+        //         'order_sub_type': 0,
+        //         'order_type': 'LIMIT',
+        //         'price': '60000.21',
+        //         'quantity': '0.100000',
+        //         'side': 2,
+        //         'status': 3,
+        //         'stop_price': '0',
+        //         'symbol': 'BTC-USDT',
+        //         'ticker': 'BTC-USDT',
+        //         'ticker_id': 7,
+        //         'timestamp': 1724217619.237232,
+        //         'to': 'BTC',
+        //         'trade_no': '40546382832340918031114',
+        //         'update_timestamp': 1724217619.237275 },
         // // fetchOrders //
         // const order = {
         //     'order_id': '11574744030837944',
@@ -1735,7 +1960,7 @@ class allin extends allin$1 {
         //     },
         // };
         const timestamp = this.safeTimestamp2(order, 'create_at', 'create_time');
-        let updateAt = timestamp;
+        const updateAt = this.safeTimestamp2(order, 'update_time', 'update_timestamp');
         const symbol = this.safeString2(market, 'symbol', 'market');
         const side = this.parseOrderSide(this.safeInteger(order, 'side'));
         const price = this.safeString(order, 'price');
@@ -1760,7 +1985,6 @@ class allin extends allin$1 {
         }
         else {
             status = this.parseFutureOrderStatus(this.safeInteger(order, 'status'));
-            updateAt = this.safeTimestamp(order, 'update_time', timestamp);
         }
         return this.safeOrder({
             'info': order,
@@ -1904,7 +2128,7 @@ class allin extends allin$1 {
     }
     handleErrors(statusCode, statusText, url, method, responseHeaders, responseBody, response, requestHeaders, requestBody) {
         if (statusCode >= 400) {
-            throw new errors.NetworkError(this.id + ' ' + statusText);
+            throw new errors.NetworkError(this.id + ' http-code=' + this.numberToString(statusCode) + ', ' + statusText);
         }
         // const response = { 'code': 0,
         //     'msg': 'ok',
@@ -1923,11 +2147,19 @@ class allin extends allin$1 {
         if (responseCode !== 0) {
             const codeStr = this.numberToString(responseCode);
             const messageNew = this.safeString(response, 'msg');
-            const msg = this.id + ', code: ' + codeStr + ', ' + messageNew;
-            this.log(response);
+            const msg = this.id + ', server-code=' + codeStr + ', ' + messageNew;
             this.throwExactlyMatchedException(this.exceptions['exact'], codeStr, msg);
-            // Make sure to throw an exception.
-            // throw new ExchangeError (msg);
+        }
+    }
+    throwExactlyMatchedException(exact, string, message) {
+        if (string === undefined) {
+            return;
+        }
+        if (string in exact) {
+            throw new exact[string](message);
+        }
+        else {
+            throw new errors.ExchangeError(message);
         }
     }
 }

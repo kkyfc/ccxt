@@ -40,16 +40,16 @@ class allin extends \ccxt\async\allin {
             'urls' => array(
                 'test' => array(
                     'ws' => array(
-                        'spot' => 'wss://ws.allintest.pro/ws',
-                        'future' => 'wss://api.allintest.pro/futures/wsf',
-                        'swap' => 'wss://api.allintest.pro/futures/wsf',
+                        'spot' => 'ws://ws.aie.test/ws',
+                        'future' => 'ws://futuresws.aie.test/wsf',
+                        'swap' => 'ws://futuresws.aie.test/wsf',
                     ),
                 ),
                 'api' => array(
                     'ws' => array(
-                        'spot' => 'wss://ws.allinpro.com/ws',
-                        'future' => 'wss://api.allinpro.com/futures/wsf',
-                        'swap' => 'wss://api.allinpro.com/futures/wsf',
+                        'spot' => 'ws://ws.aie.prod/ws',
+                        'future' => 'ws://futuresws.aie.prod/wsf',
+                        'swap' => 'ws://futuresws.aie.prod/wsf',
                     ),
                 ),
                 'doc' => 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',
@@ -379,7 +379,7 @@ class allin extends \ccxt\async\allin {
         //             array( 'price' => '60000.0', 'quantity' => '1.100000' ),
         //             array( 'price' => '8850.2', 'quantity' => '0.200000' ) ),
         //              'symbol' => 'BTC-USDT',
-        //              'timestamp' => 1721550307627,
+        //              'timestamp' => 1721550307.627,
         //              'topic' => 'depth:step1:BTC-USDT',
         //              'tpp' => 7 ),
         //          'merge' => 'step1' ),
@@ -417,7 +417,7 @@ class allin extends \ccxt\async\allin {
             // spot
             $abData = $this->safe_dict($result, 'data');
             $marketId = $this->safe_string($abData, 'symbol');
-            $timestamp = $this->safe_integer($abData, 'timestamp');
+            $timestamp = $this->safe_timestamp($abData, 'timestamp');
         } else {
             // future
             $abData = $result;
@@ -435,10 +435,14 @@ class allin extends \ccxt\async\allin {
         $snapshot = null;
         if ($market['spot']) {
             $snapshot = $this->parse_order_book($abData, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
+            $orderbook->reset ($snapshot);
         } else {
             $snapshot = $this->parse_order_book($abData, $symbol, $timestamp, 'bids', 'asks', 0, 1);
+            $orderbook->reset ($snapshot);
+            $orderbook['markPrice'] = $this->safe_float($result, 'sign_price');
+            $orderbook['indexPrice'] = $this->safe_float($result, 'index_price');
+            $orderbook['lastPrice'] = $this->safe_float($result, 'last');
         }
-        $orderbook->reset ($snapshot);
         $this->orderbooks[$symbol] = $orderbook;
         $client->resolve ($orderbook, $messageHash);
     }
@@ -676,6 +680,7 @@ class allin extends \ccxt\async\allin {
         //         'symbol' => 'BTC-USDT',
         //         'ticker_id' => 7,
         //         'timestamp' => 1721031092,
+        //         'update_timestamp' => 1721031092,
         //         'to' => 'BTC',
         //         'topic' => 'orders:BTC-USDT',
         //         'tpp' => 7,
