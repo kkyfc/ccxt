@@ -70,7 +70,7 @@ Full public and private HTTP REST APIs for all exchanges are implemented. WebSoc
 - [Exchange Structure](#exchange-structure)
 - [Rate Limit](#rate-limit)
 
-The CCXT library currently supports the following 103 cryptocurrency exchange markets and trading APIs:
+The CCXT library currently supports the following 104 cryptocurrency exchange markets and trading APIs:
 
 | logo                                                                                                                                                                                                          | id                    | name                                                                                                  | ver                                                                                                                                              | type | certified                                                                                                                   | pro                                                                          |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|-------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------:|------|-----------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|

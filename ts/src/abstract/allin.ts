@@ -28,6 +28,7 @@ interface Exchange {
     spotPrivatePostOpenV1OrdersPlace (params?: {}): Promise<implicitReturnType>;
     spotPrivatePostOpenV1OrdersCancel (params?: {}): Promise<implicitReturnType>;
     spotPrivatePostOpenV1OrdersBatcancel (params?: {}): Promise<implicitReturnType>;
+    spotPrivatePostOpenV1TickersBrush (params?: {}): Promise<implicitReturnType>;
     futurePublicGetOpenApiV2MarketKline (params?: {}): Promise<implicitReturnType>;
     futurePublicGetOpenApiV2MarketList (params?: {}): Promise<implicitReturnType>;
     futurePublicGetOpenApiV2MarketDeals (params?: {}): Promise<implicitReturnType>;
@@ -49,6 +50,7 @@ interface Exchange {
     futurePrivatePostOpenApiV2OrderMarket (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderCancelAll (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderCancel (params?: {}): Promise<implicitReturnType>;
+    futurePrivatePostOpenApiV2OrderCancelBatch (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderLimit (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderStop (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2OrderStopCancel (params?: {}): Promise<implicitReturnType>;
@@ -57,6 +59,7 @@ interface Exchange {
     futurePrivatePostOpenApiV2PositionCloseLimit (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2PositionCloseMarket (params?: {}): Promise<implicitReturnType>;
     futurePrivatePostOpenApiV2PositionCloseStop (params?: {}): Promise<implicitReturnType>;
+    futurePrivatePostOpenApiV2OrderReport (params?: {}): Promise<implicitReturnType>;
 }
 abstract class Exchange extends _Exchange {}
 

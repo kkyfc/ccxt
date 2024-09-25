@@ -34,16 +34,16 @@ class allin extends allin$1 {
             'urls': {
                 'test': {
                     'ws': {
-                        'spot': 'wss://ws.allintest.pro/ws',
-                        'future': 'wss://api.allintest.pro/futures/wsf',
-                        'swap': 'wss://api.allintest.pro/futures/wsf',
+                        'spot': 'ws://ws.aie.test/ws',
+                        'future': 'ws://futuresws.aie.test/wsf',
+                        'swap': 'ws://futuresws.aie.test/wsf',
                     },
                 },
                 'api': {
                     'ws': {
-                        'spot': 'wss://ws.allinpro.com/ws',
-                        'future': 'wss://api.allinpro.com/futures/wsf',
-                        'swap': 'wss://api.allinpro.com/futures/wsf',
+                        'spot': 'ws://ws.aie.prod/ws',
+                        'future': 'ws://futuresws.aie.prod/wsf',
+                        'swap': 'ws://futuresws.aie.prod/wsf',
                     },
                 },
                 'doc': 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',
@@ -365,7 +365,7 @@ class allin extends allin$1 {
         //             { 'price': '60000.0', 'quantity': '1.100000' },
         //             { 'price': '8850.2', 'quantity': '0.200000' } ],
         //              'symbol': 'BTC-USDT',
-        //              'timestamp': 1721550307627,
+        //              'timestamp': 1721550307.627,
         //              'topic': 'depth:step1:BTC-USDT',
         //              'tpp': 7 },
         //          'merge': 'step1' },
@@ -403,7 +403,7 @@ class allin extends allin$1 {
             // spot
             abData = this.safeDict(result, 'data');
             marketId = this.safeString(abData, 'symbol');
-            timestamp = this.safeInteger(abData, 'timestamp');
+            timestamp = this.safeTimestamp(abData, 'timestamp');
         }
         else {
             // future
@@ -422,11 +422,15 @@ class allin extends allin$1 {
         let snapshot = undefined;
         if (market['spot']) {
             snapshot = this.parseOrderBook(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
+            orderbook.reset(snapshot);
         }
         else {
             snapshot = this.parseOrderBook(abData, symbol, timestamp, 'bids', 'asks', 0, 1);
+            orderbook.reset(snapshot);
+            orderbook['markPrice'] = this.safeFloat(result, 'sign_price');
+            orderbook['indexPrice'] = this.safeFloat(result, 'index_price');
+            orderbook['lastPrice'] = this.safeFloat(result, 'last');
         }
-        orderbook.reset(snapshot);
         this.orderbooks[symbol] = orderbook;
         client.resolve(orderbook, messageHash);
     }
@@ -659,6 +663,7 @@ class allin extends allin$1 {
         //         'symbol': 'BTC-USDT',
         //         'ticker_id': 7,
         //         'timestamp': 1721031092,
+        //         'update_timestamp': 1721031092,
         //         'to': 'BTC',
         //         'topic': 'orders:BTC-USDT',
         //         'tpp': 7,

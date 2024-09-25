@@ -7,7 +7,7 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import asyncio
 import hashlib
-from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, Trade, Num
+from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade
 from typing import List
 from ccxt.base.errors import BaseError
 from ccxt.base.errors import ExchangeError
@@ -20,9 +20,11 @@ from ccxt.base.errors import InsufficientFunds
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import OrderNotFound
 from ccxt.base.errors import OrderNotFillable
+from ccxt.base.errors import NotSupported
 from ccxt.base.errors import OperationFailed
 from ccxt.base.errors import NetworkError
 from ccxt.base.errors import RateLimitExceeded
+from ccxt.base.decimal_to_precision import TICK_SIZE
 from ccxt.base.precise import Precise
 
 
@@ -39,6 +41,7 @@ class allin(Exchange, ImplicitAPI):
             'hostname': 'allin.pro',
             'pro': True,
             'certified': False,
+            'precisionMode': TICK_SIZE,
             'options': {
                 'sandboxMode': False,
                 'fetchMarkets': ['spot', 'future'],
@@ -52,6 +55,7 @@ class allin(Exchange, ImplicitAPI):
                 'future': True,
                 'option': False,
                 'borrowCrossMargin': True,
+                'brushVolume': True,    # 刷单接口
                 'cancelAllOrders': True,
                 'cancelAllOrdersAfter': True,
                 'cancelOrder': True,
@@ -163,18 +167,18 @@ class allin(Exchange, ImplicitAPI):
             },
             'urls': {
                 'test': {
-                    'spotPublic': 'https://api.allintest.pro',
-                    'spotPrivate': 'https://api.allintest.pro',
-                    'futurePublic': 'https://api.allintest.pro/futuresopen',
-                    'futurePrivate': 'https://api.allintest.pro/futuresopen',
+                    'spotPublic': 'http://api.aie.test',
+                    'spotPrivate': 'http://api.aie.test',
+                    'futurePublic': 'http://futuresopen.aie.test',
+                    'futurePrivate': 'http://futuresopen.aie.test',
                 },
                 'logo': 'https://allinexchange.github.io/spot-docs/v1/en/images/logo-e47cee02.svg',
                 'doc': ['https://allinexchange.github.io/spot-docs/v1/en/#introduction'],
                 'api': {
-                    'spotPublic': 'https://api.allinpro.com',
-                    'spotPrivate': 'https://api.allinpro.com',
-                    'futurePublic': 'https://api.allinpro.com/futuresopen',
-                    'futurePrivate': 'https://api.allinpro.com/futuresopen',
+                    'spotPublic': 'http://api.aie.prod',
+                    'spotPrivate': 'http://api.aie.prod',
+                    'futurePublic': 'http://futuresopen.aie.prod',
+                    'futurePrivate': 'http://futuresopen.aie.prod',
                 },
             },
             'api': {
@@ -206,6 +210,7 @@ class allin(Exchange, ImplicitAPI):
                         '/open/v1/orders/place': 0,
                         '/open/v1/orders/cancel': 0,
                         '/open/v1/orders/batcancel': 0,
+                        '/open/v1/tickers/brush': 0,  # 刷量
                     },
                 },
                 'futurePublic': {
@@ -239,6 +244,7 @@ class allin(Exchange, ImplicitAPI):
                         '/open/api/v2/order/market': 0,
                         '/open/api/v2/order/cancel/all': 0,
                         '/open/api/v2/order/cancel': 0,
+                        '/open/api/v2/order/cancel/batch': 0,
                         '/open/api/v2/order/limit': 0,
                         '/open/api/v2/order/stop': 0,
                         '/open/api/v2/order/stop/cancel': 0,
@@ -247,6 +253,7 @@ class allin(Exchange, ImplicitAPI):
                         '/open/api/v2/position/close/limit': 0,
                         '/open/api/v2/position/close/market': 0,
                         '/open/api/v2/position/close/stop': 0,
+                        '/open/api/v2/order/report': 0,  # 刷量
                     },
                 },
             },
@@ -266,7 +273,7 @@ class allin(Exchange, ImplicitAPI):
                     '1010316': AuthenticationError,  # no authority, sign is error
                     '1010007': RateLimitExceeded,   # call too frequently
                     '1010325': BadSymbol,           # symbol is empty
-                    '10500': ExchangeError,         # system error
+                    '10500': InsufficientFunds,         # system error
                     '1010367': OperationFailed,     # self ticker cannot be operated
                     '1010006': AuthenticationError,  # invalid user_id
                     '1010009': BadRequest,          # side is error
@@ -399,29 +406,21 @@ class allin(Exchange, ImplicitAPI):
             return self.parse_future_market(market)
 
     def parse_future_market(self, market: dict) -> MarketInterface:
-        # market = {'code': 0,
-        #     'data': [{'amount_min': '0.0001',
-        #         'amount_prec': 4,
-        #         'available': True,
-        #         'fee_prec': 8,
-        #         'leverages': ['5', '8', '10', '15', '20', '30', '50', '100'],
-        #         'limits': [['500.0001', '5', '0.1'],
-        #             ['200.0001', '10', '0.05'],
-        #             ['100.0001', '15', '0.03'],
-        #             ['50.0001', '20', '0.02'],
-        #             ['20.0001', '50', '0.01'],
-        #             ['10.0001', '100', '0.005']],
-        #         'merges': ['100', '10', '1', '0.1', '0.01'],
-        #         'money': 'USDT',
-        #         'money_prec': 2,
-        #         'name': 'BTCUSDT',
-        #         'sort': 1,
-        #         'stock': 'BTC',
-        #         'stock_prec': 8,
-        #         'tick_size': '0.01',
-        #         'type': 1}],
-        #     'msg': 'success',
-        #     'time': 1722510060}
+        # market = {'type': 1,
+        #     'leverages': ['3', '5', '8', '10', '15', '20', '30', '50', '100'],
+        #     'merges': ['100', '10', '1', '0.1', '0.01'],
+        #     'name': 'BTCUSDT',
+        #     'stock': 'BTC',
+        #     'money': 'USDT',
+        #     'fee_prec': 8,
+        #     'tick_size': '0.01',
+        #     'stock_prec': 8,
+        #     'money_prec': 2,
+        #     'amount_prec': 4,
+        #     'amount_min': '0.0001',
+        #     'available': True,
+        #     'limits': [['2500.0001', '3', '0.036'], ['2000.0001', '5', '0.032'], ['1500.0001', '8', '0.028'], ['1000.0001', '10', '0.024'], ['500.0001', '15', '0.02'], ['250.0001', '20', '0.016'], ['100.0001', '30', '0.012'], ['50.0001', '50', '0.008'], ['20.0001', '100', '0.004']],
+        #     'sort': 100}
         origin_symbol = self.safe_string(market, 'name')
         active = self.safe_bool(market, 'available')
         baseId = self.safe_string(market, 'stock')
@@ -449,8 +448,8 @@ class allin(Exchange, ImplicitAPI):
         leverages = self.safe_list(market, 'leverages')
         maxLeverage = self.safe_string(leverages, len(leverages) - 1)
         minLeverage = self.safe_string(leverages, 0)
-        base_precision = self.safe_number(market, 'stock_prec')
-        quote_precision = self.safe_number(market, 'money_prec')
+        base_precision = self.safe_string(market, 'amount_prec')
+        quote_precision = self.safe_string(market, 'money_prec')
         return self.extend(fees, {
             'id': origin_symbol,
             'symbol': symbol,
@@ -479,8 +478,8 @@ class allin(Exchange, ImplicitAPI):
             'taker': 0.0002,
             'created': None,
             'precision': {
-                'amount': base_precision,
-                'price': quote_precision,
+                'amount': self.parse_number(self.parse_precision(base_precision)),
+                'price': self.parse_number(self.parse_precision(quote_precision)),
             },
             'limits': {
                 'leverage': {
@@ -533,8 +532,8 @@ class allin(Exchange, ImplicitAPI):
         quote = self.safe_currency_code(quoteId)
         settleId = self.safe_string(market, 'settleCcy')
         settle = self.safe_currency_code(settleId)
-        base_precision = self.safe_integer(market, 'base_precision')
-        quote_precision = self.safe_integer(market, 'quote_precision')
+        base_precision = self.safe_string(market, 'base_precision')
+        quote_precision = self.safe_string(market, 'quote_precision')
         fees = self.safe_dict_2(self.fees, type_, 'trading', {})
         maxLeverage = self.safe_string(market, 'lever', '1')
         maxLeverage = Precise.string_max(maxLeverage, '1')
@@ -584,8 +583,8 @@ class allin(Exchange, ImplicitAPI):
             'taker': 0.0002,
             'created': None,
             'precision': {
-                'amount': base_precision,
-                'price': quote_precision,
+                'amount': self.parse_number(self.parse_precision(base_precision)),
+                'price': self.parse_number(self.parse_precision(quote_precision)),
             },
             'limits': {
                 'leverage': {
@@ -683,6 +682,28 @@ class allin(Exchange, ImplicitAPI):
         #         {'price': '73104.20', 'quantity': '0.040996'},
         #         {'price': '78000.00', 'quantity': '0.003000'}]},
         #     'time': 1721550050}
+        # future {
+        #     "code": 0,
+        #     "msg": "success",
+        #     "data": {
+        #       "index_price": "1577.63",
+        #       "sign_price": "1581.5",
+        #       "time": 1697620709569,
+        #       "last": "1573.89",
+        #       "asks": [
+        #         [
+        #           "1621.22",
+        #           "30.613"
+        #         ]
+        #       ],
+        #       "bids": [
+        #         [
+        #           "1573.84",
+        #           "0.819"
+        #         ]
+        #       ]
+        #     }
+        #   }
         if symbol is None:
             raise ArgumentsRequired(self.id + ' fetchOrderBook() requires a symbol argument')
         await self.load_markets()
@@ -703,7 +724,11 @@ class allin(Exchange, ImplicitAPI):
             response = await self.futurePublicGetOpenApiV2MarketDepth(request)
             result = self.safe_dict(response, 'data', {})
             timestamp = self.safe_integer(result, 'time')
-            return self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 0, 1)
+            orderbook = self.parse_order_book(result, symbol, timestamp, 'bids', 'asks', 0, 1)
+            orderbook['markPrice'] = self.safe_float(result, 'sign_price')
+            orderbook['indexPrice'] = self.safe_float(result, 'index_price')
+            orderbook['lastPrice'] = self.safe_float(result, 'last')
+            return orderbook
 
     async def fetch_balance(self, params={}) -> Balances:
         """
@@ -1097,25 +1122,57 @@ class allin(Exchange, ImplicitAPI):
         :param float [price]: the price that the order is to be fullfilled, in units of the quote currency, ignored in market orders
         :param dict [params]: extra parameters specific to the exchange API endpoint
         """
-        # {
-        #     "code": 0,
-        #     "msg": "ok",
-        #     "data": {
-        #         "order_id": "xxx",
-        #         "trade_no": "xxx",
-        #     },
-        # }
+        # spot = {'code': 0,
+        #     'msg': 'ok',
+        #     'data': {'create_at': 1724217619.237232,
+        #         'frm': 'USDT',
+        #         'left': '0.000000',
+        #         'match_amt': '5939.74200000',
+        #         'match_price': '59397.42',
+        #         'match_qty': '0.100000',
+        #         'order_id': '112321459',
+        #         'order_sub_type': 0,
+        #         'order_type': 'LIMIT',
+        #         'price': '60000.21',
+        #         'quantity': '0.100000',
+        #         'side': 2,
+        #         'status': 3,
+        #         'stop_price': '0',
+        #         'symbol': 'BTC-USDT',
+        #         'ticker': 'BTC-USDT',
+        #         'ticker_id': 7,
+        #         'timestamp': 1724217619.237232,
+        #         'to': 'BTC',
+        #         'trade_no': '40546382832340918031114',
+        #         'update_timestamp': 1724217619.237275},
+        #     'time': 1724217619.237593}
         # future
-        # {"code": 0, "msg": "success", "data": 5023856, "time": 1723130482}
+        # future = {'code': 0,
+        #     'msg': 'success',
+        #     'data': {'order_id': '22710426',
+        #         'position_id': '0',
+        #         'market': 'BTCUSDT',
+        #         'type': '1',
+        #         'side': '1',
+        #         'left': '0.0099',
+        #         'amount': '0.0099',
+        #         'filled': '0',
+        #         'deal_fee': '0',
+        #         'price': '59181.464',
+        #         'avg_price': '',
+        #         'deal_stock': '0',
+        #         'position_type': '2',
+        #         'leverage': '5',
+        #         'update_time': '1724067149.721356',
+        #         'create_time': '1724067149.721356',
+        #         'status': '1',
+        #         'stop_loss_price': '',
+        #         'take_profit_price': '',
+        #         'client_oid': '40546335150450903175323'},
+        #     'time': 1723130482}
         await self.load_markets()
         market = self.market(symbol)
-        symbolId = self.safe_string(market, 'id')
         response = None
-        allinOrderSide = None
-        allinOrderType = None
-        timestamp = None  # timestamp in s
-        orderId = None
-        tradeNo = None
         if market['spot']:
             request: dict = self.create_spot_order_request(
                 symbol,
@@ -1123,16 +1180,12 @@ class allin(Exchange, ImplicitAPI):
                 side,
                 amount,
                 price,
-                params,
-                market
+                market,
+                params
             )
             response = await self.spotPrivatePostOpenV1OrdersPlace(request)
             orderData = self.safe_dict(response, 'data')
-            timestamp = self.safe_integer(response, 'time')  # timestamp in s
-            orderId = self.safe_string(orderData, 'order_id')
-            tradeNo = self.safe_string(orderData, 'trade_no')
-            allinOrderSide = request['side']
-            allinOrderType = request['order_type']
+            return self.parse_order(orderData, market)
         else:
             request: dict = self.create_future_order_request(
                 symbol,
@@ -1140,34 +1193,43 @@ class allin(Exchange, ImplicitAPI):
                 side,
                 amount,
                 price,
-                params,
-                market
+                market,
+                params
             )
             if type == 'limit':
                 response = await self.futurePrivatePostOpenApiV2OrderLimit(request)
             else:
                 response = await self.futurePrivatePostOpenApiV2OrderMarket(request)
-            timestamp = self.safe_integer(response, 'time')  # timestamp in s
-            orderId = self.safe_string(response, 'data')
-            tradeNo = None
-            allinOrderSide = self.to_order_side(side)
-            allinOrderType = self.to_future_order_type(type)
-        return self.parse_order({
-            'order_id': orderId,
-            'trade_no': tradeNo,
-            'symbol': symbolId,
-            'price': price,
-            'quantity': amount,
-            'match_amt': '0',
-            'match_qty': '0',
-            'match_price': '',
-            'side': allinOrderSide,
-            'order_type': allinOrderType,
-            'status': 'open',
-            'create_at': timestamp,
-        }, market)
+            orderData = self.safe_dict(response, 'data')
+            return self.parse_order(orderData, market)
 
-    async def cancel_order(self, id: str, symbol: Str, params={}) -> {}:
+    async def brush_volume(self, symbol: str, side: OrderSide, amount: float, price: Num):
+        """
+        刷量
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        response = None
+        allinSide = self.to_order_side(side)
+        if market['spot']:
+            request = {
+                'symbol': market['id'],
+                'side': allinSide,
+                'price': self.price_to_precision(symbol, price),
+                'quantity': self.amount_to_precision(symbol, amount),
+            }
+            response = await self.spotPrivatePostOpenV1TickersBrush(request)
+        else:
+            request = {
+                'market': market['id'],
+                'side': allinSide,
+                'price': self.price_to_precision(symbol, price),
+                'quantity': self.amount_to_precision(symbol, amount),
+            }
+            response = await self.futurePrivatePostOpenApiV2OrderReport(request)
+        return response
+
+    async def cancel_order(self, id: str, symbol: Str, params={}) -> dict:
         """
         cancels an open order
         :see: https://allinexchange.github.io/spot-docs/v1/en/#cancel-an-order-in-order
@@ -1193,7 +1255,29 @@ class allin(Exchange, ImplicitAPI):
         #         'trade_no': '40545292203741231233614'},
         #     'time': 1720775985}
         # future
-        # {"code": 0, "msg": "success", "data": 2591546, "time": 1723187903}
+        # future = {'code': 0,
+        #     'msg': 'success',
+        #     'data': {'order_id': '22710426',
+        #         'position_id': '0',
+        #         'market': 'BTCUSDT',
+        #         'type': '1',
+        #         'side': '1',
+        #         'left': '0.0099',
+        #         'amount': '0.0099',
+        #         'filled': '0',
+        #         'deal_fee': '0',
+        #         'price': '59181.464',
+        #         'avg_price': '',
+        #         'deal_stock': '0',
+        #         'position_type': '2',
+        #         'leverage': '5',
+        #         'update_time': '1724067149.721356',
+        #         'create_time': '1724067149.721356',
+        #         'status': '1',
+        #         'stop_loss_price': '',
+        #         'take_profit_price': '',
+        #         'client_oid': '40546335150450903175323'},
+        #     'time': 1723130482}
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
@@ -1214,41 +1298,101 @@ class allin(Exchange, ImplicitAPI):
                 'order_id': id,
             }
             response = await self.futurePrivatePostOpenApiV2OrderCancel(request)
-            return {
-                'info': response,
-                'id': id,
-                'symbol': symbol,
-                'status': 'open',
-                'timestamp': self.safe_timestamp(response, 'time'),
-            }
+            orderData = self.safe_dict(response, 'data')
+            return self.parse_order(orderData, market)
 
-    def create_spot_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
+    async def cancel_orders(self, ids: List[str], symbol: Str = None, params={}):
+        """
+        cancel multiple orders
+        :see: https://allinexchange.github.io/spot-docs/v1/en/#cancel-all-or-part-of-the-orders-in-order
+        :param str[] ids: order ids
+        :param str [symbol]: unified market symbol
+        :param dict [params]: extra parameters specific to the exchange API endpoint
+        """
+        # spot
+        # {
+        #     'code': 0,
+        #     'data': [
+        #         {
+        #             'symbol': 'BTC-USDT',
+        #             'order_id': '11574744030837944',
+        #             'trade_no': '499016576021202015341',
+        #             'price': '7900',
+        #             'quantity': '1',
+        #             'match_amt': '0',
+        #             'match_qty': '0',
+        #             'match_price': '',
+        #             'side': -1,
+        #             'order_type': 1,
+        #             'create_at': 1574744151836
+        #         },
+        #     ],
+        # }
+        # future {"code": 0, "msg": "success", "data": ["20979038", "20979039"], "time": 1723883453}
+        currentType = self.options['defaultType']
+        await self.load_markets()
+        market = self.market(symbol)
+        if currentType == 'spot':
+            request = {
+                'symbol': market['id'],
+                'order_ids': ','.join(ids),
+            }
+            response = await self.spotPrivatePostOpenV1OrdersBatcancel(request)
+            orderDatas = self.safe_dict(response, 'data')
+            return self.parse_orders(orderDatas, market)
+        else:
+            request = {
+                'market': market['id'],
+                'order_ids': ','.join(ids),
+            }
+            response = await self.futurePrivatePostOpenApiV2OrderCancelBatch(request)
+            orderDatas = self.safe_dict(response, 'data')
+            return self.parse_orders(orderDatas, market)
+
+    def create_spot_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, market: Market, params={}) -> dict:
         orderType = self.to_spot_order_type(type)
         orderSide = self.to_order_side(side)
         request = {
             'symbol': market['id'],
             'side': self.force_string(orderSide),
             'order_type': orderType,
-            'quantity': self.force_string(amount),
+            'quantity': self.amount_to_precision(symbol, amount),
         }
         if price is not None and orderType == 'LIMIT':
-            request['price'] = self.force_string(price)
+            request['price'] = self.price_to_precision(symbol, price)
         requestParams = self.omit(params, [
             'postOnly', 'stopLossPrice', 'takeProfitPrice', 'stopPrice',
             'triggerPrice', 'trailingTriggerPrice',
             'trailingPercent', 'quoteOrderQty'])
         return self.extend(request, requestParams)
 
-    def create_future_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
+    def create_future_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, market: Market, params={}) -> dict:
         orderSide = self.to_order_side(side)
         request = {
             'market': market['id'],
             'side': orderSide,
-            'quantity': self.force_string(amount),
+            'quantity': self.amount_to_precision(symbol, amount),
         }
         if price is not None and type == 'limit':
-            request['price'] = self.force_string(price)
+            request['price'] = self.price_to_precision(symbol, price)
         return request
+
+    async def fetch_funding_rate(self, symbol: str, params={}):
+        """
+        fetch the current funding rate
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        request: dict = {
+            'market': market['id'],
+        }
+        response = None
+        if market['future'] or market['swap']:
+            response = await self.futurePublicGetOpenApiV2MarketState(request)
+        else:
+            raise NotSupported(self.id + ' fetchFundingRate() supports linear and inverse contracts only')
+        data = self.safe_dict(response, 'data', {})
+        return self.parse_funding_rate(data, market)
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         url = self.implode_hostname(self.urls['api'][api]) + path
@@ -1280,7 +1424,7 @@ class allin(Exchange, ImplicitAPI):
             body = self.urlencode(body)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    async def set_leverage(self, leverage: Int, symbol: Str = None, params={}) -> {}:
+    async def set_leverage(self, leverage: Int, symbol: Str = None, params={}) -> dict:
         """
         set the level of leverage for a market
         :param str [params.marginMode]: set marginMode
@@ -1300,6 +1444,47 @@ class allin(Exchange, ImplicitAPI):
             }
             return await self.futurePrivatePostOpenApiV2SettingLeverage(request)
         return {}
+
+    def parse_funding_rate(self, contract, market: Market = None) -> FundingRate:
+        #     "data": {
+        #       "market": "ETHUSDT",
+        #       "amount": "4753.05",
+        #       "high": "1573.89",
+        #       "last": "1573.89",
+        #       "low": "1571.23",
+        #       "open": "1571.23",
+        #       "change": "0.0016929411989333",
+        #       "period": 86400,
+        #       "volume": "3.02",
+        #       "funding_time": 400,
+        #       "position_amount": "2.100",
+        #       "funding_rate_last": "0.00375",
+        #       "funding_rate_next": "0.00293873",
+        #       "funding_rate_predict": "-0.00088999",
+        #       "insurance": "10500.45426906585552617850",
+        #       "sign_price": "1581.98",
+        #       "index_price": "1578.12",
+        #       "sell_total": "112.974",
+        #       "buy_total": "170.914"
+        #     }
+        timestamp = self.milliseconds()
+        return {
+            'info': contract,
+            'symbol': market['symbol'],
+            'markPrice': self.safe_float(contract, 'sign_price'),
+            'indexPrice': self.safe_float(contract, 'index_price'),
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'fundingRate': self.safe_float(contract, 'funding_rate_last'),
+            'nextFundingRate': self.safe_float(contract, 'funding_rate_next'),
+            'previousFundingRate': self.safe_float(contract, 'funding_rate_predict'),
+            'nextFundingTimestamp': None,
+            'nextFundingDatetime': None,
+            'previousFundingTimestamp': None,
+            'previousFundingDatetime': None,
+            'fundingTimestamp': timestamp,
+            'interestRate': None,
+        }
 
     def parse_ticker(self, ticker: dict, market: Market = None) -> Ticker:
         # ticker = {'symbol': 'BTC-USDT',
@@ -1386,8 +1571,8 @@ class allin(Exchange, ImplicitAPI):
             originBalance = originBalances[i]
             symbol = self.safe_string(originBalance, 'symbol')
             used = self.safe_string(originBalance, 'freeze')
-            total = self.safe_string(originBalance, 'amount')
-            free = Precise.string_sub(total, used)
+            free = self.safe_string(originBalance, 'amount')
+            total = Precise.string_add(free, used)
             balances[symbol] = {
                 'free': free,
                 'used': used,
@@ -1482,7 +1667,7 @@ class allin(Exchange, ImplicitAPI):
         }
         return timeframes[timeframeId]
 
-    def parse_trade(self, trade: dict, market: Market) -> Trade:
+    def parse_trade(self, trade: dict, market: Market = null) -> Trade:
         #         {'amount': '10200.00000015',
         #             'price': '68000.000001',
         #             'side': 1,
@@ -1537,7 +1722,12 @@ class allin(Exchange, ImplicitAPI):
         elif type_ == 'MARKET' or type_ == '2':
             return 'market'
         else:
-            raise ExchangeError('unknown orderType: ' + self.number_to_string(type_))
+            errorType = None
+            if type_:
+                errorType = str(type_)
+            else:
+                errorType = 'None'
+            raise ExchangeError('unknown orderType: ' + errorType)
 
     def to_spot_order_type(self, type_: str):
         # ccxt orderType to allin orderType
@@ -1599,7 +1789,29 @@ class allin(Exchange, ImplicitAPI):
         }
         return self.safe_string(statusDict, statusStr)
 
-    def parse_order(self, order: dict, market: Market) -> Order:
+    def parse_order(self, order: dict, market: Market = null) -> Order:
+        #  # create spot order
+        #     'data': {'create_at': 1724217619.237232,
+        #         'frm': 'USDT',
+        #         'left': '0.000000',
+        #         'match_amt': '5939.74200000',
+        #         'match_price': '59397.42',
+        #         'match_qty': '0.100000',
+        #         'order_id': '112321459',
+        #         'order_sub_type': 0,
+        #         'order_type': 'LIMIT',
+        #         'price': '60000.21',
+        #         'quantity': '0.100000',
+        #         'side': 2,
+        #         'status': 3,
+        #         'stop_price': '0',
+        #         'symbol': 'BTC-USDT',
+        #         'ticker': 'BTC-USDT',
+        #         'ticker_id': 7,
+        #         'timestamp': 1724217619.237232,
+        #         'to': 'BTC',
+        #         'trade_no': '40546382832340918031114',
+        #         'update_timestamp': 1724217619.237275},
         #  # fetchOrders  #
         # order = {
         #     'order_id': '11574744030837944',
@@ -1666,7 +1878,7 @@ class allin(Exchange, ImplicitAPI):
         #     },
         # }
         timestamp = self.safe_timestamp_2(order, 'create_at', 'create_time')
-        updateAt = timestamp
+        updateAt = self.safe_timestamp_2(order, 'update_time', 'update_timestamp')
         symbol = self.safe_string_2(market, 'symbol', 'market')
         side = self.parse_order_side(self.safe_integer(order, 'side'))
         price = self.safe_string(order, 'price')
@@ -1689,7 +1901,6 @@ class allin(Exchange, ImplicitAPI):
             status = self.parse_spot_order_status(self.safe_integer(order, 'status'))
         else:
             status = self.parse_future_order_status(self.safe_integer(order, 'status'))
-            updateAt = self.safe_timestamp(order, 'update_time', timestamp)
         return self.safe_order({
             'info': order,
             'id': self.safe_string(order, 'order_id'),
@@ -1826,7 +2037,7 @@ class allin(Exchange, ImplicitAPI):
 
     def handle_errors(self, statusCode: Int, statusText: str, url: str, method: str, responseHeaders: dict, responseBody: str, response: Any, requestHeaders: Any, requestBody: Any):
         if statusCode >= 400:
-            raise NetworkError(self.id + ' ' + statusText)
+            raise NetworkError(self.id + ' http-code=' + self.number_to_string(statusCode) + ', ' + statusText)
         # response = {'code': 0,
         #     'msg': 'ok',
         #     'data': [
@@ -1839,12 +2050,17 @@ class allin(Exchange, ImplicitAPI):
         # {'code': '10013', 'msg': 'order is not exist', 'data': None, 'time': '1723189930'}
         if response is None:
             return None  # fallback to default error handler
-        responseCode: int = self.safe_integer(response, 'code', 0)
+        responseCode = self.safe_integer(response, 'code', 0)
         if responseCode != 0:
             codeStr = self.number_to_string(responseCode)
             messageNew = self.safe_string(response, 'msg')
-            msg = self.id + ', code: ' + codeStr + ', ' + messageNew
-            self.log(response)
+            msg = self.id + ', server-code=' + codeStr + ', ' + messageNew
             self.throw_exactly_matched_exception(self.exceptions['exact'], codeStr, msg)
-            # Make sure to raise an exception.
-            # raise ExchangeError(msg)
+
+    def throw_exactly_matched_exception(self, exact, string, message):
+        if string is None:
+            return
+        if string in exact:
+            raise exact[string](message)
+        else:
+            raise ExchangeError(message)

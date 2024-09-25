@@ -42,16 +42,16 @@ class allin(ccxt.async_support.allin):
             'urls': {
                 'test': {
                     'ws': {
-                        'spot': 'wss://ws.allintest.pro/ws',
-                        'future': 'wss://api.allintest.pro/futures/wsf',
-                        'swap': 'wss://api.allintest.pro/futures/wsf',
+                        'spot': 'ws://ws.aie.test/ws',
+                        'future': 'ws://futuresws.aie.test/wsf',
+                        'swap': 'ws://futuresws.aie.test/wsf',
                     },
                 },
                 'api': {
                     'ws': {
-                        'spot': 'wss://ws.allinpro.com/ws',
-                        'future': 'wss://api.allinpro.com/futures/wsf',
-                        'swap': 'wss://api.allinpro.com/futures/wsf',
+                        'spot': 'ws://ws.aie.prod/ws',
+                        'future': 'ws://futuresws.aie.prod/wsf',
+                        'swap': 'ws://futuresws.aie.prod/wsf',
                     },
                 },
                 'doc': 'https://allinexchange.github.io/spot-docs/v1/en/#verified-api',
@@ -345,7 +345,7 @@ class allin(ccxt.async_support.allin):
         #             {'price': '60000.0', 'quantity': '1.100000'},
         #             {'price': '8850.2', 'quantity': '0.200000'}],
         #              'symbol': 'BTC-USDT',
-        #              'timestamp': 1721550307627,
+        #              'timestamp': 1721550307.627,
         #              'topic': 'depth:step1:BTC-USDT',
         #              'tpp': 7},
         #          'merge': 'step1'},
@@ -383,7 +383,7 @@ class allin(ccxt.async_support.allin):
             # spot
             abData = self.safe_dict(result, 'data')
             marketId = self.safe_string(abData, 'symbol')
-            timestamp = self.safe_integer(abData, 'timestamp')
+            timestamp = self.safe_timestamp(abData, 'timestamp')
         else:
             # future
             abData = result
@@ -399,9 +399,13 @@ class allin(ccxt.async_support.allin):
         snapshot = None
         if market['spot']:
             snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
+            orderbook.reset(snapshot)
         else:
             snapshot = self.parse_order_book(abData, symbol, timestamp, 'bids', 'asks', 0, 1)
-        orderbook.reset(snapshot)
+            orderbook.reset(snapshot)
+            orderbook['markPrice'] = self.safe_float(result, 'sign_price')
+            orderbook['indexPrice'] = self.safe_float(result, 'index_price')
+            orderbook['lastPrice'] = self.safe_float(result, 'last')
         self.orderbooks[symbol] = orderbook
         client.resolve(orderbook, messageHash)
 
@@ -622,6 +626,7 @@ class allin(ccxt.async_support.allin):
         #         'symbol': 'BTC-USDT',
         #         'ticker_id': 7,
         #         'timestamp': 1721031092,
+        #         'update_timestamp': 1721031092,
         #         'to': 'BTC',
         #         'topic': 'orders:BTC-USDT',
         #         'tpp': 7,
