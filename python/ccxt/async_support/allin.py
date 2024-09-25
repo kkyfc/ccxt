@@ -7,7 +7,7 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import asyncio
 import hashlib
-from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade
+from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade, Num
 from typing import List
 from ccxt.base.errors import BaseError
 from ccxt.base.errors import ExchangeError
@@ -1642,11 +1642,11 @@ class allin(Exchange, ImplicitAPI):
         # [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
             self.safe_timestamp_2(ohlcv, 'timestamp', 0),
-            self.safe_integer_2(ohlcv, 'open', 1),
-            self.safe_integer_2(ohlcv, 'high', 3),
-            self.safe_integer_2(ohlcv, 'low', 4),
-            self.safe_integer_2(ohlcv, 'close', 2),
-            self.safe_integer_2(ohlcv, 'volume', 5),
+            self.safe_float_2(ohlcv, 'open', 1),
+            self.safe_float_2(ohlcv, 'high', 3),
+            self.safe_float_2(ohlcv, 'low', 4),
+            self.safe_float_2(ohlcv, 'close', 2),
+            self.safe_float_2(ohlcv, 'volume', 5),
         ]
 
     def parse_lower_timeframe(self, timeframeId: str):
@@ -1667,7 +1667,7 @@ class allin(Exchange, ImplicitAPI):
         }
         return timeframes[timeframeId]
 
-    def parse_trade(self, trade: dict, market: Market = null) -> Trade:
+    def parse_trade(self, trade: dict, market: Market) -> Trade:
         #         {'amount': '10200.00000015',
         #             'price': '68000.000001',
         #             'side': 1,
@@ -1789,7 +1789,7 @@ class allin(Exchange, ImplicitAPI):
         }
         return self.safe_string(statusDict, statusStr)
 
-    def parse_order(self, order: dict, market: Market = null) -> Order:
+    def parse_order(self, order: dict, market: Market) -> Order:
         #  # create spot order
         #     'data': {'create_at': 1724217619.237232,
         #         'frm': 'USDT',

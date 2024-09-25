@@ -1707,11 +1707,11 @@ class allin extends allin$1 {
         // [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
             this.safeTimestamp2(ohlcv, 'timestamp', 0),
-            this.safeInteger2(ohlcv, 'open', 1),
-            this.safeInteger2(ohlcv, 'high', 3),
-            this.safeInteger2(ohlcv, 'low', 4),
-            this.safeInteger2(ohlcv, 'close', 2),
-            this.safeInteger2(ohlcv, 'volume', 5),
+            this.safeFloat2(ohlcv, 'open', 1),
+            this.safeFloat2(ohlcv, 'high', 3),
+            this.safeFloat2(ohlcv, 'low', 4),
+            this.safeFloat2(ohlcv, 'close', 2),
+            this.safeFloat2(ohlcv, 'volume', 5),
         ];
     }
     parseLowerTimeframe(timeframeId) {
@@ -1732,7 +1732,7 @@ class allin extends allin$1 {
         };
         return timeframes[timeframeId];
     }
-    parseTrade(trade, market = null) {
+    parseTrade(trade, market) {
         //         { 'amount': '10200.00000015',
         //             'price': '68000.000001',
         //             'side': 1,
@@ -1871,7 +1871,7 @@ class allin extends allin$1 {
         };
         return this.safeString(statusDict, statusStr);
     }
-    parseOrder(order, market = null) {
+    parseOrder(order, market) {
         // // create spot order
         //     'data': { 'create_at': 1724217619.237232,
         //         'frm': 'USDT',

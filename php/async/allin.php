@@ -1751,11 +1751,11 @@ class allin extends Exchange {
         // [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return array(
             $this->safe_timestamp_2($ohlcv, 'timestamp', 0),
-            $this->safe_integer_2($ohlcv, 'open', 1),
-            $this->safe_integer_2($ohlcv, 'high', 3),
-            $this->safe_integer_2($ohlcv, 'low', 4),
-            $this->safe_integer_2($ohlcv, 'close', 2),
-            $this->safe_integer_2($ohlcv, 'volume', 5),
+            $this->safe_float_2($ohlcv, 'open', 1),
+            $this->safe_float_2($ohlcv, 'high', 3),
+            $this->safe_float_2($ohlcv, 'low', 4),
+            $this->safe_float_2($ohlcv, 'close', 2),
+            $this->safe_float_2($ohlcv, 'volume', 5),
         );
     }
 
@@ -1778,7 +1778,7 @@ class allin extends Exchange {
         return $timeframes[$timeframeId];
     }
 
-    public function parse_trade(array $trade, array $market = null): array {
+    public function parse_trade(array $trade, ?array $market): array {
         //         { 'amount' => '10200.00000015',
         //             'price' => '68000.000001',
         //             'side' => 1,
@@ -1915,7 +1915,7 @@ class allin extends Exchange {
         return $this->safe_string($statusDict, $statusStr);
     }
 
-    public function parse_order(array $order, array $market = null): array {
+    public function parse_order(array $order, ?array $market): array {
         // // create spot $order
         //     'data' => array( 'create_at' => 1724217619.237232,
         //         'frm' => 'USDT',
