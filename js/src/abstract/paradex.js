@@ -5,7 +5,6 @@
 // EDIT THE CORRESPONDENT .ts FILE INSTEAD
 
 // -------------------------------------------------------------------------------
-import { Exchange as _Exchange } from '../base/Exchange.js';
-class Exchange extends _Exchange {
-}
-export default Exchange;
+import { Exchange as _Exchange } from '../base/Exchange.js'
+class Exchange extends _Exchange {}
+export default Exchange

@@ -16,6 +16,7 @@ from ccxt.base.errors import BadRequest
 from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import NetworkError
 from ccxt.base.errors import InvalidNonce
+from ccxt.base.errors import ChecksumError
 
 
 class htx(ccxt.async_support.htx):
@@ -38,6 +39,7 @@ class htx(ccxt.async_support.htx):
                 'watchTickers': False,
                 'watchTicker': True,
                 'watchTrades': True,
+                'watchTradesForSymbols': False,
                 'watchMyTrades': True,
                 'watchBalance': True,
                 'watchOHLCV': True,
@@ -109,6 +111,7 @@ class htx(ccxt.async_support.htx):
                 'api': 'api',  # or api-aws for clients hosted on AWS
                 'watchOrderBook': {
                     'maxRetries': 3,
+                    'checksum': True,
                 },
                 'ws': {
                     'gunzip': True,
@@ -140,6 +143,8 @@ class htx(ccxt.async_support.htx):
     async def watch_ticker(self, symbol: str, params={}) -> Ticker:
         """
         watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=7ec53561-7773-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=28c33ab2-77ae-11ed-9966-0242ac110003
         :param str symbol: unified symbol of the market to fetch the ticker for
         :param dict [params]: extra parameters specific to the exchange API endpoint
         :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
@@ -205,6 +210,9 @@ class htx(ccxt.async_support.htx):
     async def watch_trades(self, symbol: str, since: Int = None, limit: Int = None, params={}) -> List[Trade]:
         """
         get the list of most recent trades for a particular symbol
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=7ec53b69-7773-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=28c33c21-77ae-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=28c33cfe-77ae-11ed-9966-0242ac110003
         :param str symbol: unified symbol of the market to fetch trades for
         :param int [since]: timestamp in ms of the earliest trade to fetch
         :param int [limit]: the maximum amount of trades to fetch
@@ -263,6 +271,9 @@ class htx(ccxt.async_support.htx):
     async def watch_ohlcv(self, symbol: str, timeframe='1m', since: Int = None, limit: Int = None, params={}) -> List[list]:
         """
         watches historical candlestick data containing the open, high, low, and close price, and the volume of a market
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=7ec53241-7773-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=28c3346a-77ae-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=28c33563-77ae-11ed-9966-0242ac110003
         :param str symbol: unified symbol of the market to fetch OHLCV data for
         :param str timeframe: the length of time each candle represents
         :param int [since]: timestamp in ms of the earliest candle to fetch
@@ -549,7 +560,9 @@ class htx(ccxt.async_support.htx):
             orderbook.reset(snapshot)
             orderbook['nonce'] = version
         if (prevSeqNum is not None) and prevSeqNum > orderbook['nonce']:
-            raise InvalidNonce(self.id + ' watchOrderBook() received a mesage out of order')
+            checksum = self.handle_option('watchOrderBook', 'checksum', True)
+            if checksum:
+                raise ChecksumError(self.id + ' ' + self.orderbook_checksum_message(symbol))
         spotConditon = market['spot'] and (prevSeqNum == orderbook['nonce'])
         nonSpotCondition = market['contract'] and (version - 1 == orderbook['nonce'])
         if spotConditon or nonSpotCondition:
@@ -637,11 +650,12 @@ class htx(ccxt.async_support.htx):
     async def watch_my_trades(self, symbol: Str = None, since: Int = None, limit: Int = None, params={}) -> List[Trade]:
         """
         watches information on multiple trades made by the user
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=7ec53dd5-7773-11ed-9966-0242ac110003
         :param str symbol: unified market symbol of the market trades were made in
         :param int [since]: the earliest time in ms to fetch trades for
         :param int [limit]: the maximum number of trade structures to retrieve
         :param dict [params]: extra parameters specific to the exchange API endpoint
-        :returns dict[]: a list of [trade structures]{@link https://docs.ccxt.com/#/?id=trade-structure
+        :returns dict[]: a list of `trade structures <https://docs.ccxt.com/#/?id=trade-structure>`
         """
         self.check_required_credentials()
         await self.load_markets()
@@ -723,6 +737,7 @@ class htx(ccxt.async_support.htx):
     async def watch_orders(self, symbol: Str = None, since: Int = None, limit: Int = None, params={}) -> List[Order]:
         """
         watches information on multiple orders made by the user
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=7ec53c8f-7773-11ed-9966-0242ac110003
         :param str symbol: unified market symbol of the market orders were made in
         :param int [since]: the earliest time in ms to fetch orders for
         :param int [limit]: the maximum number of order structures to retrieve
@@ -1264,6 +1279,10 @@ class htx(ccxt.async_support.htx):
     async def watch_balance(self, params={}) -> Balances:
         """
         watch balance and get the amount of funds available for trading or funds locked in orders
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=7ec52e28-7773-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=10000084-77b7-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=8cb7dcca-77b5-11ed-9966-0242ac110003
+        :see: https://www.htx.com/en-us/opend/newApiPages/?id=28c34995-77ae-11ed-9966-0242ac110003
         :param dict [params]: extra parameters specific to the exchange API endpoint
         :returns dict: a `balance structure <https://docs.ccxt.com/#/?id=balance-structure>`
         """

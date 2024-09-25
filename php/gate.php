@@ -592,21 +592,22 @@ class gate extends Exchange {
             // copied from gatev2
             'commonCurrencies' => array(
                 '88MPH' => 'MPH',
-                'AXIS' => 'Axis DeFi',
-                'BIFI' => 'Bitcoin File',
-                'BOX' => 'DefiBox',
-                'BYN' => 'BeyondFi',
-                'EGG' => 'Goose Finance',
-                'GTC' => 'Game.com', // conflict with Gitcoin and Gastrocoin
-                'GTC_HT' => 'Game.com HT',
-                'GTC_BSC' => 'Game.com BSC',
-                'HIT' => 'HitChain',
-                'MM' => 'Million', // conflict with MilliMeter
-                'MPH' => 'Morpher', // conflict with 88MPH
-                'POINT' => 'GatePoint',
-                'RAI' => 'Rai Reflex Index', // conflict with RAI Finance
-                'SBTC' => 'Super Bitcoin',
-                'TNC' => 'Trinity Network Credit',
+                'AXIS' => 'AXISDEFI',
+                'BIFI' => 'BITCOINFILE',
+                'BOX' => 'DEFIBOX',
+                'BYN' => 'BEYONDFI',
+                'EGG' => 'GOOSEFINANCE',
+                'GTC' => 'GAMECOM', // conflict with Gitcoin and Gastrocoin
+                'GTC_HT' => 'GAMECOM_HT',
+                'GTC_BSC' => 'GAMECOM_BSC',
+                'HIT' => 'HITCHAIN',
+                'MM' => 'MILLION', // conflict with MilliMeter
+                'MPH' => 'MORPHER', // conflict with 88MPH
+                'POINT' => 'GATEPOINT',
+                'RAI' => 'RAIREFLEXINDEX', // conflict with RAI Finance
+                'RED' => 'RedLang',
+                'SBTC' => 'SUPERBITCOIN',
+                'TNC' => 'TRINITYNETWORKCREDIT',
                 'VAI' => 'VAIOT',
                 'TRAC' => 'TRACO', // conflict with OriginTrail (TRAC)
             ),
@@ -636,6 +637,9 @@ class gate extends Exchange {
                     'OPTIMISM' => 'OPETH',
                     'POLKADOT' => 'DOTSM',
                     'TRC20' => 'TRX',
+                    'LUNA' => 'LUNC',
+                    'BASE' => 'BASEEVM',
+                    'BRC20' => 'BTCBRC',
                 ),
                 'timeInForce' => array(
                     'GTC' => 'gtc',
@@ -981,8 +985,9 @@ class gate extends Exchange {
     }
 
     public function fetch_spot_markets($params = array ()) {
-        $marginResponse = $this->publicMarginGetCurrencyPairs ($params);
-        $spotMarketsResponse = $this->publicSpotGetCurrencyPairs ($params);
+        $marginPromise = $this->publicMarginGetCurrencyPairs ($params);
+        $spotMarketsPromise = $this->publicSpotGetCurrencyPairs ($params);
+        list($marginResponse, $spotMarketsResponse) = array( $marginPromise, $spotMarketsPromise );
         $marginMarkets = $this->index_by($marginResponse, 'id');
         //
         //  Spot
@@ -3417,8 +3422,8 @@ class gate extends Exchange {
         $side = $this->safe_string_2($trade, 'side', 'type', $contractSide);
         $orderId = $this->safe_string($trade, 'order_id');
         $feeAmount = $this->safe_string($trade, 'fee');
-        $gtFee = $this->safe_string($trade, 'gt_fee');
-        $pointFee = $this->safe_string($trade, 'point_fee');
+        $gtFee = $this->omit_zero($this->safe_string($trade, 'gt_fee'));
+        $pointFee = $this->omit_zero($this->safe_string($trade, 'point_fee'));
         $fees = array();
         if ($feeAmount !== null) {
             $feeCurrencyId = $this->safe_string($trade, 'fee_currency');
@@ -3955,7 +3960,7 @@ class gate extends Exchange {
                     $request['settle'] = $market['settleId']; // filled in prepareRequest above
                 }
                 if ($isMarketOrder) {
-                    $request['price'] = $price; // set to 0 for $market orders
+                    $request['price'] = '0'; // set to 0 for $market orders
                 } else {
                     $request['price'] = ($price === 0) ? '0' : $this->price_to_precision($symbol, $price);
                 }
@@ -4169,9 +4174,9 @@ class gate extends Exchange {
                 $request['amount'] = $this->amount_to_precision($symbol, $amount);
             } else {
                 if ($side === 'sell') {
-                    $request['size'] = Precise::string_neg($this->amount_to_precision($symbol, $amount));
+                    $request['size'] = $this->parse_to_numeric(Precise::string_neg($this->amount_to_precision($symbol, $amount)));
                 } else {
-                    $request['size'] = $this->amount_to_precision($symbol, $amount);
+                    $request['size'] = $this->parse_to_numeric($this->amount_to_precision($symbol, $amount));
                 }
             }
         }
@@ -5037,8 +5042,7 @@ class gate extends Exchange {
         /**
          * cancel multiple $orders for multiple symbols
          * @see https://www.gate.io/docs/developers/apiv4/en/#cancel-a-batch-of-$orders-with-an-$id-list
-         * @param {string[]} ids $order ids
-         * @param {string} $symbol unified $symbol of the $market the $order was made in
+         * @param {CancellationRequest[]} $orders list of $order ids with $symbol, example [array("id" => "a", "symbol" => "BTC/USDT"), array("id" => "b", "symbol" => "ETH/USDT")]
          * @param {array} [$params] extra parameters specific to the exchange API endpoint
          * @param {string[]} [$params->clientOrderIds] client $order ids
          * @return {array} an list of ~@link https://docs.ccxt.com/#/?$id=$order-structure $order structures~
@@ -6485,7 +6489,7 @@ class gate extends Exchange {
         return $result;
     }
 
-    public function fetch_ledger(?string $code = null, ?int $since = null, ?int $limit = null, $params = array ()) {
+    public function fetch_ledger(?string $code = null, ?int $since = null, ?int $limit = null, $params = array ()): array {
         /**
          * fetch the history of changes, actions done by the user or operations that altered the balance of the user
          * @see https://www.gate.io/docs/developers/apiv4/en/#query-account-book
@@ -6493,12 +6497,12 @@ class gate extends Exchange {
          * @see https://www.gate.io/docs/developers/apiv4/en/#query-account-book-2
          * @see https://www.gate.io/docs/developers/apiv4/en/#query-account-book-3
          * @see https://www.gate.io/docs/developers/apiv4/en/#list-account-changing-history
-         * @param {string} $code unified $currency $code
+         * @param {string} [$code] unified $currency $code
          * @param {int} [$since] timestamp in ms of the earliest ledger entry
          * @param {int} [$limit] max number of ledger entries to return
          * @param {array} [$params] extra parameters specific to the exchange API endpoint
          * @param {int} [$params->until] end time in ms
-         * @param {boolean} [$params->paginate] default false, when true will automatically $paginate by calling this endpoint multiple times. See in the docs all the [availble parameters](https://github.com/ccxt/ccxt/wiki/Manual#pagination-$params)
+         * @param {boolean} [$params->paginate] default false, when true will automatically $paginate by calling this endpoint multiple times. See in the docs all the [available parameters](https://github.com/ccxt/ccxt/wiki/Manual#pagination-$params)
          * @return {array} a ~@link https://docs.ccxt.com/#/?id=ledger-structure ledger structure~
          */
         $this->load_markets();
@@ -6597,7 +6601,7 @@ class gate extends Exchange {
         return $this->parse_ledger($response, $currency, $since, $limit);
     }
 
-    public function parse_ledger_entry(array $item, ?array $currency = null) {
+    public function parse_ledger_entry(array $item, ?array $currency = null): array {
         //
         // spot
         //
@@ -6651,6 +6655,7 @@ class gate extends Exchange {
             $direction = 'in';
         }
         $currencyId = $this->safe_string($item, 'currency');
+        $currency = $this->safe_currency($currencyId, $currency);
         $type = $this->safe_string($item, 'type');
         $rawTimestamp = $this->safe_string($item, 'time');
         $timestamp = null;
@@ -6662,7 +6667,8 @@ class gate extends Exchange {
         $balanceString = $this->safe_string($item, 'balance');
         $changeString = $this->safe_string($item, 'change');
         $before = $this->parse_number(Precise::string_sub($balanceString, $changeString));
-        return array(
+        return $this->safe_ledger_entry(array(
+            'info' => $item,
             'id' => $this->safe_string($item, 'id'),
             'direction' => $direction,
             'account' => null,
@@ -6677,8 +6683,7 @@ class gate extends Exchange {
             'after' => $this->safe_number($item, 'balance'),
             'status' => null,
             'fee' => null,
-            'info' => $item,
-        );
+        ), $currency);
     }
 
     public function parse_ledger_entry_type($type) {
