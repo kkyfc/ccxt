@@ -1641,11 +1641,11 @@ class allin(Exchange, ImplicitAPI):
         # [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
             self.safe_timestamp_2(ohlcv, 'timestamp', 0),
-            self.safe_integer_2(ohlcv, 'open', 1),
-            self.safe_integer_2(ohlcv, 'high', 3),
-            self.safe_integer_2(ohlcv, 'low', 4),
-            self.safe_integer_2(ohlcv, 'close', 2),
-            self.safe_integer_2(ohlcv, 'volume', 5),
+            self.safe_float_2(ohlcv, 'open', 1),
+            self.safe_float_2(ohlcv, 'high', 3),
+            self.safe_float_2(ohlcv, 'low', 4),
+            self.safe_float_2(ohlcv, 'close', 2),
+            self.safe_float_2(ohlcv, 'volume', 5),
         ]
 
     def parse_lower_timeframe(self, timeframeId: str):

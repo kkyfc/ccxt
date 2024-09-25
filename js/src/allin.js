@@ -1729,11 +1729,11 @@ export default class allin extends Exchange {
         // [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return [
             this.safeTimestamp2(ohlcv, 'timestamp', 0),
-            this.safeInteger2(ohlcv, 'open', 1),
-            this.safeInteger2(ohlcv, 'high', 3),
-            this.safeInteger2(ohlcv, 'low', 4),
-            this.safeInteger2(ohlcv, 'close', 2),
-            this.safeInteger2(ohlcv, 'volume', 5),
+            this.safeFloat2(ohlcv, 'open', 1),
+            this.safeFloat2(ohlcv, 'high', 3),
+            this.safeFloat2(ohlcv, 'low', 4),
+            this.safeFloat2(ohlcv, 'close', 2),
+            this.safeFloat2(ohlcv, 'volume', 5),
         ];
     }
     parseLowerTimeframe(timeframeId) {

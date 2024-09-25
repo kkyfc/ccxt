@@ -1751,11 +1751,11 @@ class allin extends Exchange {
         // [1722670020,"66019","66019","66019","66019","0","0","BTCUSDT"]
         return array(
             $this->safe_timestamp_2($ohlcv, 'timestamp', 0),
-            $this->safe_integer_2($ohlcv, 'open', 1),
-            $this->safe_integer_2($ohlcv, 'high', 3),
-            $this->safe_integer_2($ohlcv, 'low', 4),
-            $this->safe_integer_2($ohlcv, 'close', 2),
-            $this->safe_integer_2($ohlcv, 'volume', 5),
+            $this->safe_float_2($ohlcv, 'open', 1),
+            $this->safe_float_2($ohlcv, 'high', 3),
+            $this->safe_float_2($ohlcv, 'low', 4),
+            $this->safe_float_2($ohlcv, 'close', 2),
+            $this->safe_float_2($ohlcv, 'volume', 5),
         );
     }
 
