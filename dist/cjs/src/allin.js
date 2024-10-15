@@ -1217,13 +1217,13 @@ class allin extends allin$1 {
         const market = this.market(symbol);
         let response = undefined;
         if (market['spot']) {
-            const request = this.createSpotOrderRequest(symbol, type, side, amount, price, params, market);
+            const request = this.createSpotOrderRequest(symbol, type, side, amount, price, market, params);
             response = await this.spotPrivatePostOpenV1OrdersPlace(request);
             const orderData = this.safeDict(response, 'data');
             return this.parseOrder(orderData, market);
         }
         else {
-            const request = this.createFutureOrderRequest(symbol, type, side, amount, price, params, market);
+            const request = this.createFutureOrderRequest(symbol, type, side, amount, price, market, params);
             if (type === 'limit') {
                 response = await this.futurePrivatePostOpenApiV2OrderLimit(request);
             }
@@ -1393,7 +1393,7 @@ class allin extends allin$1 {
             return this.parseOrders(orderDatas, market);
         }
     }
-    createSpotOrderRequest(symbol, type, side, amount, price, params, market) {
+    createSpotOrderRequest(symbol, type, side, amount, price, market, params = {}) {
         const orderType = this.toSpotOrderType(type);
         const orderSide = this.toOrderSide(side);
         const request = {
@@ -1412,7 +1412,7 @@ class allin extends allin$1 {
         ]);
         return this.extend(request, requestParams);
     }
-    createFutureOrderRequest(symbol, type, side, amount, price, params, market) {
+    createFutureOrderRequest(symbol, type, side, amount, price, market, params = {}) {
         const orderSide = this.toOrderSide(side);
         const request = {
             'market': market['id'],

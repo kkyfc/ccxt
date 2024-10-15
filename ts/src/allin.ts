@@ -10,7 +10,7 @@ import { ArgumentsRequired, BadRequest, NetworkError, ExchangeError,
 import { TICK_SIZE } from './base/functions/number.js';
 import { Precise } from './base/Precise.js';
 import { sha256 } from './static_dependencies/noble-hashes/sha256.js';
-import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, int, Position, Strings, Leverage, FundingRate } from './base/types.js';
+import type { Int, OrderSide, OrderType, Trade, Order, OHLCV, Balances, Str, Ticker, OrderBook, Market, MarketInterface, Num, Dict, Position, Strings, Leverage, FundingRate } from './base/types.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -1242,8 +1242,8 @@ export default class allin extends Exchange {
                 side,
                 amount,
                 price,
-                params,
-                market
+                market,
+                params
             );
             response = await this.spotPrivatePostOpenV1OrdersPlace (request);
             const orderData = this.safeDict (response, 'data');
@@ -1255,8 +1255,8 @@ export default class allin extends Exchange {
                 side,
                 amount,
                 price,
-                params,
-                market
+                market,
+                params
             );
             if (type === 'limit') {
                 response = await this.futurePrivatePostOpenApiV2OrderLimit (request);
@@ -1298,7 +1298,7 @@ export default class allin extends Exchange {
         return response;
     }
 
-    async cancelOrder (id: string, symbol: Str, params = {}): Promise<{}> {
+    async cancelOrder (id: string, symbol: Str, params = {}): Promise<Dict> {
         /**
          * @method
          * @name allin#cancelOrder
@@ -1427,7 +1427,7 @@ export default class allin extends Exchange {
         }
     }
 
-    createSpotOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
+    createSpotOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, market: Market, params = {}): Dict {
         const orderType = this.toSpotOrderType (type);
         const orderSide = this.toOrderSide (side);
         const request = {
@@ -1446,7 +1446,7 @@ export default class allin extends Exchange {
         return this.extend (request, requestParams);
     }
 
-    createFutureOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, params: {}, market: Market): Dict {
+    createFutureOrderRequest (symbol: string, type: OrderType, side: OrderSide, amount: number, price: Num, market: Market, params = {}): Dict {
         const orderSide = this.toOrderSide (side);
         const request = {
             'market': market['id'],
@@ -1517,7 +1517,7 @@ export default class allin extends Exchange {
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
-    async setLeverage (leverage: Int, symbol: Str = undefined, params = {}): Promise<{}> {
+    async setLeverage (leverage: Int, symbol: Str = undefined, params = {}): Promise<Dict> {
         /**
          * @method
          * @name allin#setLeverage
@@ -2184,7 +2184,7 @@ export default class allin extends Exchange {
         if (response === undefined) {
             return undefined; // fallback to default error handler
         }
-        const responseCode: int = this.safeInteger (response, 'code', 0);
+        const responseCode = this.safeInteger (response, 'code', 0);
         if (responseCode !== 0) {
             const codeStr = this.numberToString (responseCode);
             const messageNew = this.safeString (response, 'msg');

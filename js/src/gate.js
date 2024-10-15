@@ -610,6 +610,7 @@ export default class gate extends Exchange {
                 'MPH': 'MORPHER',
                 'POINT': 'GATEPOINT',
                 'RAI': 'RAIREFLEXINDEX',
+                'RED': 'RedLang',
                 'SBTC': 'SUPERBITCOIN',
                 'TNC': 'TRINITYNETWORKCREDIT',
                 'VAI': 'VAIOT',
@@ -641,6 +642,9 @@ export default class gate extends Exchange {
                     'OPTIMISM': 'OPETH',
                     'POLKADOT': 'DOTSM',
                     'TRC20': 'TRX',
+                    'LUNA': 'LUNC',
+                    'BASE': 'BASEEVM',
+                    'BRC20': 'BTCBRC',
                 },
                 'timeInForce': {
                     'GTC': 'gtc',
@@ -984,8 +988,9 @@ export default class gate extends Exchange {
         return this.arrayConcat(markets, optionMarkets);
     }
     async fetchSpotMarkets(params = {}) {
-        const marginResponse = await this.publicMarginGetCurrencyPairs(params);
-        const spotMarketsResponse = await this.publicSpotGetCurrencyPairs(params);
+        const marginPromise = this.publicMarginGetCurrencyPairs(params);
+        const spotMarketsPromise = this.publicSpotGetCurrencyPairs(params);
+        const [marginResponse, spotMarketsResponse] = await Promise.all([marginPromise, spotMarketsPromise]);
         const marginMarkets = this.indexBy(marginResponse, 'id');
         //
         //  Spot
@@ -3470,8 +3475,8 @@ export default class gate extends Exchange {
         const side = this.safeString2(trade, 'side', 'type', contractSide);
         const orderId = this.safeString(trade, 'order_id');
         const feeAmount = this.safeString(trade, 'fee');
-        const gtFee = this.safeString(trade, 'gt_fee');
-        const pointFee = this.safeString(trade, 'point_fee');
+        const gtFee = this.omitZero(this.safeString(trade, 'gt_fee'));
+        const pointFee = this.omitZero(this.safeString(trade, 'point_fee'));
         const fees = [];
         if (feeAmount !== undefined) {
             const feeCurrencyId = this.safeString(trade, 'fee_currency');
@@ -4019,7 +4024,7 @@ export default class gate extends Exchange {
                     request['settle'] = market['settleId']; // filled in prepareRequest above
                 }
                 if (isMarketOrder) {
-                    request['price'] = price; // set to 0 for market orders
+                    request['price'] = '0'; // set to 0 for market orders
                 }
                 else {
                     request['price'] = (price === 0) ? '0' : this.priceToPrecision(symbol, price);
@@ -4246,10 +4251,10 @@ export default class gate extends Exchange {
             }
             else {
                 if (side === 'sell') {
-                    request['size'] = Precise.stringNeg(this.amountToPrecision(symbol, amount));
+                    request['size'] = this.parseToNumeric(Precise.stringNeg(this.amountToPrecision(symbol, amount)));
                 }
                 else {
-                    request['size'] = this.amountToPrecision(symbol, amount);
+                    request['size'] = this.parseToNumeric(this.amountToPrecision(symbol, amount));
                 }
             }
         }
@@ -5140,8 +5145,7 @@ export default class gate extends Exchange {
          * @name gate#cancelOrdersForSymbols
          * @description cancel multiple orders for multiple symbols
          * @see https://www.gate.io/docs/developers/apiv4/en/#cancel-a-batch-of-orders-with-an-id-list
-         * @param {string[]} ids order ids
-         * @param {string} symbol unified symbol of the market the order was made in
+         * @param {CancellationRequest[]} orders list of order ids with symbol, example [{"id": "a", "symbol": "BTC/USDT"}, {"id": "b", "symbol": "ETH/USDT"}]
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          * @param {string[]} [params.clientOrderIds] client order ids
          * @returns {object} an list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
@@ -6629,12 +6633,12 @@ export default class gate extends Exchange {
          * @see https://www.gate.io/docs/developers/apiv4/en/#query-account-book-2
          * @see https://www.gate.io/docs/developers/apiv4/en/#query-account-book-3
          * @see https://www.gate.io/docs/developers/apiv4/en/#list-account-changing-history
-         * @param {string} code unified currency code
+         * @param {string} [code] unified currency code
          * @param {int} [since] timestamp in ms of the earliest ledger entry
          * @param {int} [limit] max number of ledger entries to return
          * @param {object} [params] extra parameters specific to the exchange API endpoint
          * @param {int} [params.until] end time in ms
-         * @param {boolean} [params.paginate] default false, when true will automatically paginate by calling this endpoint multiple times. See in the docs all the [availble parameters](https://github.com/ccxt/ccxt/wiki/Manual#pagination-params)
+         * @param {boolean} [params.paginate] default false, when true will automatically paginate by calling this endpoint multiple times. See in the docs all the [available parameters](https://github.com/ccxt/ccxt/wiki/Manual#pagination-params)
          * @returns {object} a [ledger structure]{@link https://docs.ccxt.com/#/?id=ledger-structure}
          */
         await this.loadMarkets();
@@ -6791,6 +6795,7 @@ export default class gate extends Exchange {
             direction = 'in';
         }
         const currencyId = this.safeString(item, 'currency');
+        currency = this.safeCurrency(currencyId, currency);
         const type = this.safeString(item, 'type');
         const rawTimestamp = this.safeString(item, 'time');
         let timestamp = undefined;
@@ -6803,7 +6808,8 @@ export default class gate extends Exchange {
         const balanceString = this.safeString(item, 'balance');
         const changeString = this.safeString(item, 'change');
         const before = this.parseNumber(Precise.stringSub(balanceString, changeString));
-        return {
+        return this.safeLedgerEntry({
+            'info': item,
             'id': this.safeString(item, 'id'),
             'direction': direction,
             'account': undefined,
@@ -6818,8 +6824,7 @@ export default class gate extends Exchange {
             'after': this.safeNumber(item, 'balance'),
             'status': undefined,
             'fee': undefined,
-            'info': item,
-        };
+        }, currency);
     }
     parseLedgerEntryType(type) {
         const ledgerType = {

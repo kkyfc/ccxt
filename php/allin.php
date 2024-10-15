@@ -1213,8 +1213,8 @@ class allin extends Exchange {
                 $side,
                 $amount,
                 $price,
-                $params,
-                $market
+                $market,
+                $params
             );
             $response = $this->spotPrivatePostOpenV1OrdersPlace ($request);
             $orderData = $this->safe_dict($response, 'data');
@@ -1226,8 +1226,8 @@ class allin extends Exchange {
                 $side,
                 $amount,
                 $price,
-                $params,
-                $market
+                $market,
+                $params
             );
             if ($type === 'limit') {
                 $response = $this->futurePrivatePostOpenApiV2OrderLimit ($request);
@@ -1267,7 +1267,7 @@ class allin extends Exchange {
         return $response;
     }
 
-    public function cancel_order(string $id, ?string $symbol, $params = array ()): {} {
+    public function cancel_order(string $id, ?string $symbol, $params = array ()): array {
         /**
          * cancels an open order
          * @see https://allinexchange.github.io/spot-docs/v1/en/#cancel-an-order-in-order
@@ -1392,7 +1392,7 @@ class allin extends Exchange {
         }
     }
 
-    public function create_spot_order_request(string $symbol, string $type, string $side, float $amount, ?float $price, array () $params, array $market): array {
+    public function create_spot_order_request(string $symbol, string $type, string $side, float $amount, ?float $price, array $market, $params = array ()): array {
         $orderType = $this->to_spot_order_type($type);
         $orderSide = $this->to_order_side($side);
         $request = array(
@@ -1411,7 +1411,7 @@ class allin extends Exchange {
         return $this->extend($request, $requestParams);
     }
 
-    public function create_future_order_request(string $symbol, string $type, string $side, float $amount, ?float $price, array () $params, array $market): array {
+    public function create_future_order_request(string $symbol, string $type, string $side, float $amount, ?float $price, array $market, $params = array ()): array {
         $orderSide = $this->to_order_side($side);
         $request = array(
             'market' => $market['id'],
@@ -1480,7 +1480,7 @@ class allin extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function set_leverage(?int $leverage, ?string $symbol = null, $params = array ()): {} {
+    public function set_leverage(?int $leverage, ?string $symbol = null, $params = array ()): array {
         /**
          * set the level of $leverage for a $market
          * @param {string} [$params->marginMode] set marginMode
@@ -2145,7 +2145,7 @@ class allin extends Exchange {
         if ($response === null) {
             return null; // fallback to default error handler
         }
-        $responseCode => int = $this->safe_integer($response, 'code', 0);
+        $responseCode = $this->safe_integer($response, 'code', 0);
         if ($responseCode !== 0) {
             $codeStr = $this->number_to_string($responseCode);
             $messageNew = $this->safe_string($response, 'msg');

@@ -1179,8 +1179,8 @@ class allin(Exchange, ImplicitAPI):
                 side,
                 amount,
                 price,
-                params,
-                market
+                market,
+                params
             )
             response = self.spotPrivatePostOpenV1OrdersPlace(request)
             orderData = self.safe_dict(response, 'data')
@@ -1192,8 +1192,8 @@ class allin(Exchange, ImplicitAPI):
                 side,
                 amount,
                 price,
-                params,
-                market
+                market,
+                params
             )
             if type == 'limit':
                 response = self.futurePrivatePostOpenApiV2OrderLimit(request)
@@ -1228,7 +1228,7 @@ class allin(Exchange, ImplicitAPI):
             response = self.futurePrivatePostOpenApiV2OrderReport(request)
         return response
 
-    def cancel_order(self, id: str, symbol: Str, params={}) -> {}:
+    def cancel_order(self, id: str, symbol: Str, params={}) -> dict:
         """
         cancels an open order
         :see: https://allinexchange.github.io/spot-docs/v1/en/#cancel-an-order-in-order
@@ -1348,7 +1348,7 @@ class allin(Exchange, ImplicitAPI):
             orderDatas = self.safe_dict(response, 'data')
             return self.parse_orders(orderDatas, market)
 
-    def create_spot_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
+    def create_spot_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, market: Market, params={}) -> dict:
         orderType = self.to_spot_order_type(type)
         orderSide = self.to_order_side(side)
         request = {
@@ -1365,7 +1365,7 @@ class allin(Exchange, ImplicitAPI):
             'trailingPercent', 'quoteOrderQty'])
         return self.extend(request, requestParams)
 
-    def create_future_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, params: {}, market: Market) -> dict:
+    def create_future_order_request(self, symbol: str, type: OrderType, side: OrderSide, amount: float, price: Num, market: Market, params={}) -> dict:
         orderSide = self.to_order_side(side)
         request = {
             'market': market['id'],
@@ -1423,7 +1423,7 @@ class allin(Exchange, ImplicitAPI):
             body = self.urlencode(body)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def set_leverage(self, leverage: Int, symbol: Str = None, params={}) -> {}:
+    def set_leverage(self, leverage: Int, symbol: Str = None, params={}) -> dict:
         """
         set the level of leverage for a market
         :param str [params.marginMode]: set marginMode
@@ -2049,7 +2049,7 @@ class allin(Exchange, ImplicitAPI):
         # {'code': '10013', 'msg': 'order is not exist', 'data': None, 'time': '1723189930'}
         if response is None:
             return None  # fallback to default error handler
-        responseCode: int = self.safe_integer(response, 'code', 0)
+        responseCode = self.safe_integer(response, 'code', 0)
         if responseCode != 0:
             codeStr = self.number_to_string(responseCode)
             messageNew = self.safe_string(response, 'msg')
