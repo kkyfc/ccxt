@@ -7,7 +7,7 @@ from ccxt.async_support.base.exchange import Exchange
 from ccxt.abstract.allin import ImplicitAPI
 import asyncio
 import hashlib
-from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade, Num
+from ccxt.base.types import Any, Balances, Int, Leverage, Market, MarketInterface, Order, OrderBook, OrderSide, OrderType, Position, Str, Strings, Ticker, FundingRate, Trade
 from typing import List
 from ccxt.base.errors import BaseError
 from ccxt.base.errors import ExchangeError
@@ -290,7 +290,8 @@ class allin(Exchange, ImplicitAPI):
                     '1010017': OrderNotFillable,          # Order amount cannot be less than %s
                     '1010023': BadRequest,          # Below the minimum sell price
                     '1010318': BadRequest,          # client_oid must be 21 in length, and must be numbers
-                    '1010030': OrderNotFound,       # order_id not exists
+                    '1010030': OrderNotFound,       # order_id not exists on fetch order
+                    '1010031': OrderNotFound,       # Order not found on cancel order
                     '1010002': BadRequest,          # ticker_id is empty
                     '1010004': BadRequest,          # kline type is error
                     '1010406': BadRequest,          # Depth position error

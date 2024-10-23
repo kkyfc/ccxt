@@ -278,7 +278,8 @@ class allin extends Exchange {
                     '1010017' => '\\ccxt\\OrderNotFillable',          // Order amount cannot be less than %s
                     '1010023' => '\\ccxt\\BadRequest',          // Below the minimum sell price
                     '1010318' => '\\ccxt\\BadRequest',          // client_oid must be 21 in length, and must be numbers
-                    '1010030' => '\\ccxt\\OrderNotFound',       // order_id not exists
+                    '1010030' => '\\ccxt\\OrderNotFound',       // order_id not exists on fetch order
+                    '1010031' => '\\ccxt\\OrderNotFound',       // Order not found on cancel order
                     '1010002' => '\\ccxt\\BadRequest',          // ticker_id is empty
                     '1010004' => '\\ccxt\\BadRequest',          // kline type is error
                     '1010406' => '\\ccxt\\BadRequest',          // Depth position error

@@ -274,6 +274,7 @@ class allin extends allin$1 {
                     '1010023': errors.BadRequest,
                     '1010318': errors.BadRequest,
                     '1010030': errors.OrderNotFound,
+                    '1010031': errors.OrderNotFound,
                     '1010002': errors.BadRequest,
                     '1010004': errors.BadRequest,
                     '1010406': errors.BadRequest,
