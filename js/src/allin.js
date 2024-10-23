@@ -277,6 +277,7 @@ export default class allin extends Exchange {
                     '1010023': BadRequest,
                     '1010318': BadRequest,
                     '1010030': OrderNotFound,
+                    '1010031': OrderNotFound,
                     '1010002': BadRequest,
                     '1010004': BadRequest,
                     '1010406': BadRequest,
